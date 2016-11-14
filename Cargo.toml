@@ -3,4 +3,12 @@ name = "sandcrust"
 version = "0.1.0"
 authors = ["Benjamin Lamowski <benjamin@lamowski.net>"]
 
+[lib]
+name = "sandcrust"
+path = "src/lib.rs"
+
+[[bin]]
+name = "sandstorm"
+path = "src/sandstorm.rs"
+
 [dependencies]

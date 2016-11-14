@@ -4,3 +4,7 @@ mod tests {
     fn it_works() {
     }
 }
+
+pub fn sandbox_me() {
+    println!("in a box");
+}
