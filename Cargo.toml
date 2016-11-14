@@ -12,3 +12,4 @@ name = "sandstorm"
 path = "src/sandstorm.rs"
 
 [dependencies]
+nix = "0.7.0"
