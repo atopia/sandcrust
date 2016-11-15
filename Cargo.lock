@@ -3,6 +3,7 @@ name = "sandcrust"
 version = "0.1.0"
 dependencies = [
  "nix 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "sandheap 0.1.0",
 ]
 
 [[package]]
@@ -39,6 +40,13 @@ version = "0.1.7"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 dependencies = [
  "semver 0.1.20 (registry+https://github.com/rust-lang/crates.io-index)",
+]
+
+[[package]]
+name = "sandheap"
+version = "0.1.0"
+dependencies = [
+ "nix 0.7.0 (registry+https://github.com/rust-lang/crates.io-index)",
 ]
 
 [[package]]
