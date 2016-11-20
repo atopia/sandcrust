@@ -12,5 +12,7 @@ name = "sandstorm"
 path = "src/sandstorm.rs"
 
 [dependencies]
-nix = "0.7.0"
-sandheap= { path = "../sandheap" }
+nix = "*"
+libc = "*"
+errno = "*"
+sandheap = { path = "../sandheap" }
