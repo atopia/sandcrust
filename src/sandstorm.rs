@@ -12,7 +12,7 @@ use errno::errno;
 use sandcrust::sandbox_me;
 
 
-pub fn get_mnt_ns() {
+fn get_mnt_ns() {
     let pid = getpid();
     // FIXME some nicer way to build a path?
     let pathstr = "/proc/".to_string() + &pid.to_string() + "/ns/mnt";
