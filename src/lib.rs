@@ -5,6 +5,7 @@ extern crate memmap;
 
 use nix::unistd::{fork, ForkResult};
 use std::fs::{OpenOptions,remove_file};
+use std::mem::size_of;
 use nix::sys::wait::waitpid;
 use memmap::{Mmap, Protection};
 
@@ -21,10 +22,11 @@ struct Shm{
     file_mmap : Mmap,
 }
 
+
+// FIXME nicer error handling and stuff
 impl Shm{
     fn new(size : u64) -> Shm{
         let path: &'static str = "/dev/shm/sandcrust_shm";
-        // FIXME nicer error handling and stuff
         let f = OpenOptions::new()
             .read(true)
             .write(true)
@@ -33,25 +35,30 @@ impl Shm{
         f.set_len(size).unwrap();
         remove_file(path).unwrap();
         Shm {
-            file_mmap : Mmap::open(&f, Protection::Read).unwrap(),
+            file_mmap : Mmap::open(&f, Protection::ReadWrite).unwrap(),
         }
     }
 
-    fn as_ptr(&self) -> *const u8 {
-        self.file_mmap.ptr()
+    fn as_ptr(&mut self) -> *mut u8 {
+        self.file_mmap.mut_ptr()
     }
 }
 
 
 pub fn sandbox_me(func: fn()) {
-    let shm = Shm::new(4096);
+    let size = size_of::<u8>() as u64;
+    let mut shm = Shm::new(size);
     let memptr = shm.as_ptr();
-    let middle = unsafe { memptr.offset(2048) };
-    let points_at = unsafe { *middle };
-    println!("shm points at {}", points_at);
+    let memref : &mut u8 = unsafe { &mut *memptr };
+    println!("memref1 is {}", memref);
+    //let middle = unsafe { memptr.offset(2048) };
+    *memref = 23;
+    println!("memref2 is {}", memref);
 
     match fork() {
         Ok(ForkResult::Parent { child, .. }) => {
+            // FIXME this should be w/ locking
+            *memref = 42;
             println!("PARENT:");
             func();
             match waitpid(child, None) {
@@ -61,6 +68,9 @@ pub fn sandbox_me(func: fn()) {
         }
         Ok(ForkResult::Child) => {
             sandbox::setup();
+            let newptr = shm.as_ptr();
+            let newval : &u8 = unsafe { &*newptr};
+            println!("newval is {}", newval);
             println!("CHILD:");
             func();
         }
