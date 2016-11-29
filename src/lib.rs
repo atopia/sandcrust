@@ -1,12 +1,14 @@
 extern crate nix;
 
 extern crate sandheap;
+extern crate memmap;
 
-use nix::unistd::{unlink, mkstemp, lseek, Whence, write, fork, ForkResult};
-use nix::sys::mman::*;
-use nix::c_void;
+use nix::unistd::{fork, ForkResult};
+use std::fs::File;
+//use nix::sys::mman::*;
 use sandheap as sandbox;
 use nix::sys::wait::waitpid;
+use memmap::{Mmap, Protection};
 
 #[cfg(test)]
 mod tests {
@@ -15,23 +17,38 @@ mod tests {
 }
 
 
-fn setup_shm(size : i64) {
-    // FIXME nicer error handling and stuff
-    let fd = match mkstemp("/dev/shm/sandcrust_shm_XXXXXX") {
-        Ok((fd, path)) => {
-            unlink(path.as_path()).unwrap(); // flag file to be deleted at app termination
-            fd
+//struct Shm<'ptr>{
+struct Shm{
+    file_mmap : Mmap,
+    //buf : &'ptr [u8],
+}
+
+//impl<'ptr> Shm<'ptr>{
+impl Shm{
+    //fn new(size : u64) -> Shm<'ptr>{
+    fn new(size : u64) -> Shm{
+        // FIXME nicer error handling and stuff
+        let f = File::create("/dev/shm/sandcrust_shm").unwrap();
+        f.set_len(size).unwrap();
+       // let file_mmap = Mmap::open(&f, Protection::Read).unwrap();
+        //let buf = unsafe { file_mmap.as_slice() };
+        Shm {
+            file_mmap : Mmap::open(&f, Protection::Read).unwrap(),
+            //file_mmap : file_mmap,
+            //buf : unsafe { file_mmap.as_slice() },
+            //buf : buf,
         }
-        Err(e) => panic!("mkstemp failed: {}", e)
-    };
-    lseek(fd, size - 1, Whence::SeekSet).unwrap();
-    // write a single byte at size -1 to stretch the file to size
-    write(fd, &[0u8]).unwrap();
-    let ptr = mmap(NULL, size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0).unwrap();
+    }
+
+    fn get_ptr(&self) -> *const u8 {
+        self.file_mmap.ptr()
+    }
 }
 
 
 pub fn sandbox_me(func: fn()) {
+    let shm = Shm::new(2);
+    let memptr = shm.get_ptr();
     match fork() {
         Ok(ForkResult::Parent { child, .. }) => {
             println!("PARENT:");
