@@ -4,11 +4,11 @@ extern crate sandheap;
 extern crate memmap;
 
 use nix::unistd::{fork, ForkResult};
-use std::fs::File;
-//use nix::sys::mman::*;
-use sandheap as sandbox;
+use std::fs::{OpenOptions,remove_file};
 use nix::sys::wait::waitpid;
 use memmap::{Mmap, Protection};
+
+use sandheap as sandbox;
 
 #[cfg(test)]
 mod tests {
@@ -17,38 +17,39 @@ mod tests {
 }
 
 
-//struct Shm<'ptr>{
 struct Shm{
     file_mmap : Mmap,
-    //buf : &'ptr [u8],
 }
 
-//impl<'ptr> Shm<'ptr>{
 impl Shm{
-    //fn new(size : u64) -> Shm<'ptr>{
     fn new(size : u64) -> Shm{
+        let path: &'static str = "/dev/shm/sandcrust_shm";
         // FIXME nicer error handling and stuff
-        let f = File::create("/dev/shm/sandcrust_shm").unwrap();
+        let f = OpenOptions::new()
+            .read(true)
+            .write(true)
+            .create(true)
+            .open(path).unwrap();
         f.set_len(size).unwrap();
-       // let file_mmap = Mmap::open(&f, Protection::Read).unwrap();
-        //let buf = unsafe { file_mmap.as_slice() };
+        remove_file(path).unwrap();
         Shm {
             file_mmap : Mmap::open(&f, Protection::Read).unwrap(),
-            //file_mmap : file_mmap,
-            //buf : unsafe { file_mmap.as_slice() },
-            //buf : buf,
         }
     }
 
-    fn get_ptr(&self) -> *const u8 {
+    fn as_ptr(&self) -> *const u8 {
         self.file_mmap.ptr()
     }
 }
 
 
 pub fn sandbox_me(func: fn()) {
-    let shm = Shm::new(2);
-    let memptr = shm.get_ptr();
+    let shm = Shm::new(4096);
+    let memptr = shm.as_ptr();
+    let middle = unsafe { memptr.offset(2048) };
+    let points_at = unsafe { *middle };
+    println!("shm points at {}", points_at);
+
     match fork() {
         Ok(ForkResult::Parent { child, .. }) => {
             println!("PARENT:");
