@@ -7,8 +7,7 @@ extern crate memmap;
 pub use nix::unistd::{fork, ForkResult};
 pub use nix::libc::pid_t;
 pub use std::process::exit;
-// FIXME demo code
-pub use std::mem::size_of;
+pub use std::mem::size_of_val;
 
 use std::fs::{OpenOptions, remove_file};
 use nix::sys::wait::waitpid;
@@ -89,7 +88,12 @@ impl Sandcrust {
 #[macro_export]
 macro_rules! sandbox_me {
     ($f:ident($($x:expr ),*)) => {{
-        let mut sandcrust = Sandcrust::new(size_of::<u8>());
+        let mut size: usize = 8;
+        $(
+            size += size_of_val($x);
+        )*
+
+        let mut sandcrust = Sandcrust::new(size);
 
         match fork() {
             Ok(ForkResult::Parent { child, .. }) => sandcrust.join_child(child),
