@@ -9,7 +9,7 @@ use libc::{readlink, c_char};
 use std::ffi::CString;
 use errno::errno;
 
-use sandcrust::sandbox_me;
+use sandcrust::*;
 
 
 fn get_mnt_ns() {
@@ -36,5 +36,9 @@ fn get_mnt_ns() {
 
 
 pub fn main() {
-    sandbox_me(get_mnt_ns);
+    println!("PARENT: now sandboxing child");
+    sandbox_me!(get_mnt_ns());
+
+    println!("PARENT:");
+    get_mnt_ns();
 }

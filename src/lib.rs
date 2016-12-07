@@ -3,10 +3,13 @@ extern crate nix;
 extern crate sandheap;
 extern crate memmap;
 
-use nix::unistd::{fork, ForkResult};
+pub use nix::unistd::{fork, ForkResult};
+pub use nix::libc::pid_t;
+pub use std::process::exit;
+
 use std::fs::{OpenOptions,remove_file};
 use std::mem::size_of;
-use nix::sys::wait::waitpid;
+use nix::sys::wait::{waitpid};
 use memmap::{Mmap, Protection};
 
 use sandheap as sandbox;
@@ -44,36 +47,57 @@ impl Shm{
     }
 }
 
+// needed so that the macro actually finds its shit
+#[doc(hidden)]
+pub fn sandbox_setup_shm() {
+        let size = size_of::<u8>() as u64;
+        let mut shm = Shm::new(size);
+        let memptr = shm.as_ptr();
+        let memref : &mut u8 = unsafe { &mut *memptr };
+        println!("memref1 is {}", memref);
+        //let middle = unsafe { memptr.offset(2048) };
+        *memref = 23;
+        println!("memref2 is {}", memref);
+}
 
-pub fn sandbox_me(func: fn()) {
-    let size = size_of::<u8>() as u64;
-    let mut shm = Shm::new(size);
-    let memptr = shm.as_ptr();
-    let memref : &mut u8 = unsafe { &mut *memptr };
-    println!("memref1 is {}", memref);
-    //let middle = unsafe { memptr.offset(2048) };
-    *memref = 23;
-    println!("memref2 is {}", memref);
+#[doc(hidden)]
+pub fn sandbox_do_parenting(child : pid_t) {
+        // FIXME this should be w/ locking
+        //*memref = 42;
+        match waitpid(child, None) {
+            Ok(_) => println!("sandcrust: waitpid() successful"),
+            Err(e) => println!("sandcrust waitpid() failed with error {}", e),
+        }
+        //println!("PARENT: memref is now {}", memref);
+}
 
-    match fork() {
-        Ok(ForkResult::Parent { child, .. }) => {
-            // FIXME this should be w/ locking
-            *memref = 42;
-            println!("PARENT:");
-            func();
-            match waitpid(child, None) {
-                Ok(_) => println!("sandcrust: waitpid() successful"),
-                Err(e) => println!("sandcrust waitpid() failed with error {}", e),
+
+#[doc(hidden)]
+pub fn sandbox_setup_child(){
+        sandbox::setup();
+        // don't do any of that shit because we don't have the global shm -> create options once
+        // that's ready
+//        let newptr = shm.as_ptr();
+//        let newval : &mut u8 = unsafe { &mut *newptr};
+//        println!("CHILD: newval is {}", newval);
+//        *newval = 161;
+//        println!("CHILD: set newval to {}", newval);
+}
+
+
+#[macro_export]
+macro_rules! sandbox_me {
+    ($f:ident($($x:expr ),*)) => {{
+        sandbox_setup_shm();
+
+        match fork() {
+            Ok(ForkResult::Parent { child, .. }) => sandbox_do_parenting(child),
+            Ok(ForkResult::Child) => {
+                sandbox_setup_child();
+                $f($($x),*);
+                exit(0);
             }
+            Err(e) => println!("sandcrust: fork() failed with error {}", e),
         }
-        Ok(ForkResult::Child) => {
-            sandbox::setup();
-            let newptr = shm.as_ptr();
-            let newval : &u8 = unsafe { &*newptr};
-            println!("newval is {}", newval);
-            println!("CHILD:");
-            func();
-        }
-        Err(e) => println!("sandcrust: fork() failed with error {}", e),
-    }
+    }}
 }
