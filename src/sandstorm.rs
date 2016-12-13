@@ -34,8 +34,8 @@ fn get_mnt_ns() {
     }
 }
 
-fn write_a_to_b(a : &i32, b : &mut i32) {
-    *b = *a;
+fn write_a_to_b(a : i32, b : &mut i32) {
+    *b = a;
 }
 
 
@@ -49,6 +49,7 @@ pub fn main() {
     let a = 23;
     let mut b = 42;
     println!("b was: {}", b);
-    sandbox_me!(write_a_to_b(&a, &mut b));
+    //sandbox_me!(write_a_to_b(&a, &mut b));
+    write_a_to_b(a, &mut b);
     println!("b is now: {}", b);
 }
