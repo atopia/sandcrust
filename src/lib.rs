@@ -52,12 +52,19 @@ impl Shm {
 #[doc(hidden)]
 pub struct Sandcrust {
     shm: Shm,
+    memptr: *mut u8,
 }
 
 impl Sandcrust {
     pub fn new(size: usize) -> Sandcrust {
         let size = size as u64;
-        Sandcrust { shm: Shm::new(size) }
+        Sandcrust { shm: Shm::new(size), memptr: 0 as *mut u8 }
+    }
+
+    // FIXME the Method Syntax is the biggest anti-feature in Rust
+    pub fn finalize(mut self) -> Sandcrust {
+        self.memptr = self.shm.as_ptr();
+        self
     }
 
     pub fn setup_child(&mut self) {
@@ -82,24 +89,44 @@ impl Sandcrust {
         let memref: &mut u8 = unsafe { &mut *memptr };
         println!("PARENT: memref is now {}", memref);
     }
+
+    pub fn as_ptr(&mut self) -> *mut u8 {
+        self.shm.as_ptr()
+    }
+
+    pub unsafe fn get_var_in_shm<T>(&mut self, val: &T) -> *mut T {
+        let size = size_of_val(val);
+        let memptr_orig = self.memptr;
+        self.memptr.offset(size as isize);
+        memptr_orig as *mut T
+    }
 }
 
 
 #[macro_export]
 macro_rules! sandbox_me {
+    // FIXME
+    // handle no arg and/or ret val cases here
     ($f:ident($($x:expr ),*)) => {{
+        // FIXME 0
         let mut size: usize = 8;
         $(
             size += size_of_val($x);
         )*
 
-        let mut sandcrust = Sandcrust::new(size);
+        let mut sandcrust = Sandcrust::new(size).finalize();
 
         match fork() {
             Ok(ForkResult::Parent { child, .. }) => sandcrust.join_child(child),
             Ok(ForkResult::Child) => {
                 sandcrust.setup_child();
                 $f($($x),*);
+                $(
+                    unsafe {
+                        let v = sandcrust.get_var_in_shm($x);
+                        *v = $x;
+                    };
+                )*
                 exit(0);
             }
             Err(e) => println!("sandcrust: fork() failed with error {}", e),
