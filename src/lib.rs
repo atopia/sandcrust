@@ -67,15 +67,8 @@ impl Sandcrust {
         self
     }
 
-    pub fn setup_child(&mut self) {
+    pub fn setup_child(&self) {
         sandbox::setup();
-
-        // FIXME demo code
-        let newptr = self.shm.as_ptr();
-        let newval: &mut u8 = unsafe { &mut *newptr };
-        println!("CHILD: newval is {}", newval);
-        *newval = 161;
-        println!("CHILD: set newval to {}", newval);
     }
 
     pub fn join_child(&mut self, child: pid_t) {
@@ -83,11 +76,6 @@ impl Sandcrust {
             Ok(_) => println!("sandcrust: waitpid() successful"),
             Err(e) => println!("sandcrust waitpid() failed with error {}", e),
         }
-
-        // FIXME demo code
-        let memptr = self.shm.as_ptr();
-        let memref: &mut u8 = unsafe { &mut *memptr };
-        println!("PARENT: memref is now {}", memref);
     }
 
     pub fn as_ptr(&mut self) -> *mut u8 {
@@ -107,11 +95,14 @@ impl Sandcrust {
 macro_rules! sandbox_me {
     // FIXME
     // handle no arg and/or ret val cases here
+    // also FIXME: don't repeat all that code, nest macros where needed
+
+    // args, no retval
     ($f:ident($($x:expr ),*)) => {{
         // FIXME 0
         let mut size: usize = 8;
         $(
-            size += size_of_val($x);
+            size += size_of_val(&$x);
         )*
 
         let mut sandcrust = Sandcrust::new(size).finalize();
@@ -123,7 +114,7 @@ macro_rules! sandbox_me {
                 $f($($x),*);
                 $(
                     unsafe {
-                        let v = sandcrust.get_var_in_shm($x);
+                        let v = sandcrust.get_var_in_shm(&$x);
                         *v = $x;
                     };
                 )*
