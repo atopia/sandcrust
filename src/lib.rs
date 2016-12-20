@@ -99,6 +99,7 @@ macro_rules! add_size {
 }
 
 
+// FIXME: somehow refactor
 #[macro_export]
 macro_rules! store_vars {
     ($sandcrust:ident, &mut $head:ident) => {
@@ -109,18 +110,24 @@ macro_rules! store_vars {
         store_vars!($sandcrust, $($tail)*);
     };
     ($sandcrust:ident, &$head:ident) => {
-        println!("single ref: {}", $head);
-    };
-    ($sandcrust:ident, &$head:ident, $($tail:tt)+) => {
-        println!("process ref: {}", $head);
-        store_vars!($sandcrust, $($tail)*);
-    };
-    ($sandcrust:ident, $head:ident) => {{
         unsafe {
             let v = $sandcrust.get_var_in_shm(&$head);
             *v = $head;
         };
-    }};
+    };
+    ($sandcrust:ident, &$head:ident, $($tail:tt)+) => {
+        unsafe {
+            let v = $sandcrust.get_var_in_shm(&$head);
+            *v = $head;
+        };
+        store_vars!($sandcrust, $($tail)*);
+    };
+    ($sandcrust:ident, $head:ident) => {
+        unsafe {
+            let v = $sandcrust.get_var_in_shm(&$head);
+            *v = $head;
+        };
+    };
     ($sandcrust:ident, $head:ident, $($tail:tt)+) => {
         unsafe {
             let v = $sandcrust.get_var_in_shm(&$head);
@@ -139,7 +146,6 @@ macro_rules! store_vars {
 macro_rules! sandbox_me {
     // FIXME
     // handle no arg and/or ret val cases here
-    // also FIXME: don't repeat all that code, nest macros where needed
     // and more: use $crate
 
     // potentially args, no retval
