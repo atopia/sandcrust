@@ -32,15 +32,28 @@ impl Sandcrust {
 }
 
 macro_rules! process_var {
-    () => {};
+    () => {
+        println!("EOtokens");
+    };
+
+    (&$head:ident) => {
+        println!("single ref: {}", $head);
+    };
+
     ($head:ident) => {
-        println!("single {}", $head);
+        println!("single var: {}", $head);
     };
-    ($head:ident, $($tail:ident),*) => {
-        println!("shiny {}", $head);
-        process_var!($($tail),*);
+
+    (&$head:ident, $($tail:tt)*) => {
+        println!("process ref: {}", $head);
+        process_var!($($rest)*);
     };
-        /*
+    ($head:ident, $($tail:tt)*) => {
+        println!("process normal arg: {}", $head);
+        process_var!($($tail)*);
+    };
+
+    /*
     () => {};
     ($head:ident,$($tail:expr),* ) => {
         println!("ident head {}", head);
@@ -63,10 +76,15 @@ macro_rules! process_var {
 
 #[macro_export]
 macro_rules! sandbox_me {
-     ($f:ident()) => {{
+     ($f:ident()) => {
          println!("match empty");
          $f();
-    }};
+    };
+     ($f:ident($($t:tt)*)) => {
+        process_var!($($t)*);
+     //   $f($($t)*);
+     }
+     /*
      ($f:ident($(&$x:ident ),*)) => {{
          println!("match ref");
          $f($($x),*);
@@ -85,6 +103,7 @@ macro_rules! sandbox_me {
            process_var!($($x),*);
             exit(0);
     }}
+*/
 }
 
 fn print_a_b(a : &mut i32, b : &mut i32) {
@@ -107,8 +126,9 @@ fn ref_to_a(a: i32) {
 pub fn main() {
     let mut a = 23;
     let mut b = 42;
-    sandbox_me!(empty());
-    sandbox_me!(ref_to_a(&a));
-    sandbox_me!(print_a_b(&mut a, &mut b));
+//    sandbox_me!(empty());
+    sandbox_me!(ref_to_a(a));
+    sandbox_me!(ref_to_a(&b));
+//    sandbox_me!(print_a_b(&mut a, &mut b));
     //sandbox_me!(eat_a_b(a, b));
 }
