@@ -106,21 +106,27 @@ macro_rules! store_vars {
     };
     ($sandcrust:ident, &mut $head:ident, $($tail:tt)*) => {
         println!("process mut ref: {}", $head);
-        store_vars!(sandcrust, $($tail)*);
+        store_vars!($sandcrust, $($tail)*);
     };
     ($sandcrust:ident, &$head:ident) => {
         println!("single ref: {}", $head);
     };
     ($sandcrust:ident, &$head:ident, $($tail:tt)+) => {
         println!("process ref: {}", $head);
-        store_vars!(sandcrust, $($tail)*);
+        store_vars!($sandcrust, $($tail)*);
     };
-    ($sandcrust:ident, $head:ident) => {
-        println!("single var: {}", $head);
-    };
+    ($sandcrust:ident, $head:ident) => {{
+        unsafe {
+            let v = $sandcrust.get_var_in_shm(&$head);
+            *v = $head;
+        };
+    }};
     ($sandcrust:ident, $head:ident, $($tail:tt)+) => {
-        println!("process var: {}", $head);
-        store_vars!(sandcrust, $($tail)*);
+        unsafe {
+            let v = $sandcrust.get_var_in_shm(&$head);
+            *v = $head;
+        };
+        store_vars!($sandcrust, $($tail)*);
     };
 
     ($sandcrust:ident, ) => {
@@ -149,14 +155,6 @@ macro_rules! sandbox_me {
                 sandcrust.setup_child();
                 $f($($x)*);
                 store_vars!(sandcrust, $($x)*);
-                /*
-                $(
-                    unsafe {
-                        let v = sandcrust.get_var_in_shm(&$x);
-                        *v = $x;
-                    };
-                )*
-                */
                 exit(0);
             }
             Err(e) => println!("sandcrust: fork() failed with error {}", e),
