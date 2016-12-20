@@ -101,29 +101,29 @@ macro_rules! add_size {
 
 #[macro_export]
 macro_rules! store_vars {
-    (&mut $head:ident) => {
+    ($sandcrust:ident, &mut $head:ident) => {
         println!("single mut ref: {}", $head);
     };
-    (&mut $head:ident, $($tail:tt)*) => {
+    ($sandcrust:ident, &mut $head:ident, $($tail:tt)*) => {
         println!("process mut ref: {}", $head);
-        store_vars!($($tail)*);
+        store_vars!(sandcrust, $($tail)*);
     };
-    (&$head:ident) => {
+    ($sandcrust:ident, &$head:ident) => {
         println!("single ref: {}", $head);
     };
-    (&$head:ident, $($tail:tt)+) => {
+    ($sandcrust:ident, &$head:ident, $($tail:tt)+) => {
         println!("process ref: {}", $head);
-        store_vars!($($tail)*);
+        store_vars!(sandcrust, $($tail)*);
     };
-    ($head:ident) => {
+    ($sandcrust:ident, $head:ident) => {
         println!("single var: {}", $head);
     };
-    ($head:ident, $($tail:tt)+) => {
+    ($sandcrust:ident, $head:ident, $($tail:tt)+) => {
         println!("process var: {}", $head);
-        store_vars!($($tail)*);
+        store_vars!(sandcrust, $($tail)*);
     };
 
-    () => {
+    ($sandcrust:ident, ) => {
          println!("match empty");
     };
 }
@@ -148,7 +148,7 @@ macro_rules! sandbox_me {
             Ok(ForkResult::Child) => {
                 sandcrust.setup_child();
                 $f($($x)*);
-                store_vars!($($x)*);
+                store_vars!(sandcrust, $($x)*);
                 /*
                 $(
                     unsafe {
