@@ -38,7 +38,7 @@ impl Sandcrust {
 //                let v = sandcrust.get_var_in_shm(tempvar);
  //               *v = *tempvar;
     //            }; // FIXME ends
-    //
+
 #[macro_export]
 macro_rules! sandbox_me {
     (&mut $head:ident) => {
@@ -75,7 +75,7 @@ macro_rules! sandbox_me {
     };
      ($f:ident($($t:tt)+)) => {
         sandbox_me!($($t)+);
-        //$f($($t)+);
+        $f($($t)+);
      }
      /*
     ($f:ident($($x:ident ),*)) => {{
@@ -104,7 +104,11 @@ fn empty() {
     println!("this function args is none");
 }
 
-fn ref_to_a(a: i32) {
+fn ref_to_a(a: &i32) {
+    println!("this function is passed a ref to {}", a);
+}
+
+fn take_a(a: i32) {
     println!("this function is passed a ref to {}", a);
 }
 
@@ -113,9 +117,9 @@ pub fn main() {
     let mut a = 23;
     let mut b = 42;
     sandbox_me!(empty());
-    sandbox_me!(ref_to_a(a));
-    sandbox_me!(ref_to_a(&b));
+    sandbox_me!(take_a(a));
+    sandbox_me!(ref_to_a(&a));
     sandbox_me!(ref_to_a(&mut b));
-//    sandbox_me!(print_a_b(&mut a, &mut b));
+    sandbox_me!(print_a_b(&mut a, &mut b));
     sandbox_me!(eat_a_b(a, b));
 }
