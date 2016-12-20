@@ -34,10 +34,30 @@ fn get_mnt_ns() {
     }
 }
 
-fn write_a_to_b(a : i32, b : &mut i32) {
-    *b = a;
+
+fn write_b_to_a(a : &mut i32, b : &mut i32) {
+    *a = *b;
+    println!("a is now: {}", a);
 }
 
+fn eat_a_b(a: i32, mut b: i32) {
+    if b > a {
+        b = a;
+    }
+    println!("b is now: {}", b);
+}
+
+fn empty() {
+    println!("this function args is none");
+}
+
+fn ref_to_a(a: &i32) {
+    println!("this function is passed a ref to {}", a);
+}
+
+fn take_a(a: i32) {
+    println!("this function is passed {}", a);
+}
 
 pub fn main() {
     println!("PARENT: now sandboxing child");
@@ -46,10 +66,14 @@ pub fn main() {
     println!("PARENT:");
     get_mnt_ns();
 
-    let a = 23;
+    let mut a = 23;
     let mut b = 42;
     println!("b was: {}", b);
-    //sandbox_me!(write_a_to_b(&a, &mut b));
-    write_a_to_b(a, &mut b);
+    sandbox_me!(empty());
+    sandbox_me!(take_a(a));
+    sandbox_me!(ref_to_a(&a));
+    sandbox_me!(ref_to_a(&mut b));
+    sandbox_me!(write_b_to_a(&mut a, &mut b));
+    sandbox_me!(eat_a_b(a, b));
     println!("b is now: {}", b);
 }
