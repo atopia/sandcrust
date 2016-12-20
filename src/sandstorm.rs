@@ -44,7 +44,7 @@ fn eat_a_b(a: i32, mut b: i32) {
     if b > a {
         b = a;
     }
-    println!("b is now: {}", b);
+    println!("b changed to: {}", b);
 }
 
 fn empty() {
