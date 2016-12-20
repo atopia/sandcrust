@@ -40,6 +40,11 @@ macro_rules! process_var {
         println!("single mut ref: {}", $head);
     };
 
+    (&mut $head:ident, $($tail:tt)+) => {
+        println!("process mut ref: {}", $head);
+        process_var!($($tail)*);
+    };
+
     (&$head:ident) => {
         println!("single ref: {}", $head);
     };
@@ -48,19 +53,15 @@ macro_rules! process_var {
         println!("single var: {}", $head);
     };
 
-    (&$head:ident, $($tail:tt)*) => {
+    (&$head:ident, $($tail:tt)+) => {
         println!("process ref: {}", $head);
         process_var!($($rest)*);
     };
-    ($head:ident, $($tail:tt)*) => {
+    ($head:ident, $($tail:tt)+) => {
         println!("process var: {}", $head);
         process_var!($($tail)*);
     };
 
-    (&mut $head:ident, $($tail:tt)*) => {
-        println!("process mut ref: {}", $head);
-        process_var!($($tail)*);
-    };
 
     /*
     () => {};
@@ -89,9 +90,9 @@ macro_rules! sandbox_me {
          println!("match empty");
          $f();
     };
-     ($f:ident($($t:tt)*)) => {
-        process_var!($($t)*);
-     //   $f($($t)*);
+     ($f:ident($($t:tt)+)) => {
+        process_var!($($t)+);
+        //$f($($t)+);
      }
      /*
      ($f:ident($(&$x:ident ),*)) => {{
@@ -138,6 +139,7 @@ pub fn main() {
     sandbox_me!(empty());
     sandbox_me!(ref_to_a(a));
     sandbox_me!(ref_to_a(&b));
-//    sandbox_me!(print_a_b(&mut a, &mut b));
+    sandbox_me!(ref_to_a(&mut b));
+    sandbox_me!(print_a_b(&mut a, &mut b));
     sandbox_me!(eat_a_b(a, b));
 }
