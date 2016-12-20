@@ -36,6 +36,10 @@ macro_rules! process_var {
         println!("EOtokens");
     };
 
+    (&mut $head:ident) => {
+        println!("single mut ref: {}", $head);
+    };
+
     (&$head:ident) => {
         println!("single ref: {}", $head);
     };
@@ -49,7 +53,12 @@ macro_rules! process_var {
         process_var!($($rest)*);
     };
     ($head:ident, $($tail:tt)*) => {
-        println!("process normal arg: {}", $head);
+        println!("process var: {}", $head);
+        process_var!($($tail)*);
+    };
+
+    (&mut $head:ident, $($tail:tt)*) => {
+        println!("process mut ref: {}", $head);
         process_var!($($tail)*);
     };
 
@@ -126,9 +135,9 @@ fn ref_to_a(a: i32) {
 pub fn main() {
     let mut a = 23;
     let mut b = 42;
-//    sandbox_me!(empty());
+    sandbox_me!(empty());
     sandbox_me!(ref_to_a(a));
     sandbox_me!(ref_to_a(&b));
 //    sandbox_me!(print_a_b(&mut a, &mut b));
-    //sandbox_me!(eat_a_b(a, b));
+    sandbox_me!(eat_a_b(a, b));
 }
