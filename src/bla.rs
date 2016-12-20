@@ -44,39 +44,31 @@ macro_rules! sandbox_me {
     (&mut $head:ident) => {
         println!("single mut ref: {}", $head);
     };
-
     (&mut $head:ident, $($tail:tt)*) => {
         println!("process mut ref: {}", $head);
         sandbox_me!($($tail)*);
     };
-
     (&$head:ident) => {
         println!("single ref: {}", $head);
     };
-
     (&$head:ident, $($tail:tt)+) => {
         println!("process ref: {}", $head);
         sandbox_me!($($tail)*);
     };
-
-
     ($head:ident) => {
         println!("single var: {}", $head);
     };
-
     ($head:ident, $($tail:tt)+) => {
         println!("process var: {}", $head);
         sandbox_me!($($tail)*);
     };
-
-     ($f:ident()) => {
+     ($f:ident($($t:tt)*)) => {
+        sandbox_me!($($t)*);
+        $f($($t)*);
+     };
+     () => {
          println!("match empty");
-         $f();
-    };
-     ($f:ident($($t:tt)+)) => {
-        sandbox_me!($($t)+);
-        $f($($t)+);
-     }
+     };
      /*
     ($f:ident($($x:ident ),*)) => {{
         let mut size: usize = 8;
@@ -111,6 +103,7 @@ fn ref_to_a(a: &i32) {
 fn take_a(a: i32) {
     println!("this function is passed {}", a);
 }
+
 
 
 pub fn main() {
