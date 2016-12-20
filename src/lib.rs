@@ -90,6 +90,14 @@ impl Sandcrust {
     }
 }
 
+#[doc(hidden)]
+#[macro_export]
+macro_rules! add_size {
+    () => (0);
+    ($head:expr) => (size_of_val(&$head));
+    ($head:expr, $($tail:expr),*) => (size_of_val(&$head) + add_size!($($tail),*));
+}
+
 
 #[macro_export]
 macro_rules! sandbox_me {
@@ -121,14 +129,10 @@ macro_rules! sandbox_me {
     };
     // potentially args, no retval
      ($f:ident($($x:tt)*)) => {{
-        let size:usize = 8;
-        // FIXME breaks w/ args
-        /*$(
-            // FIXME 0
-            let mut size:usize = 8;
-            size += size_of_val(&$x);
-        )*
-        */
+        let mut size:usize = 8;
+        size += add_size!($($x)*);
+        println!("size is: {}", size);
+
         let mut sandcrust = Sandcrust::new(size).finalize();
         match fork() {
             Ok(ForkResult::Parent { child, .. }) => sandcrust.join_child(child),
@@ -152,25 +156,4 @@ macro_rules! sandbox_me {
      () => {
          println!("match empty");
      };
-
-     /*
-
-
-        match fork() {
-            Ok(ForkResult::Parent { child, .. }) => sandcrust.join_child(child),
-            Ok(ForkResult::Child) => {
-                sandcrust.setup_child();
-                $f($($x),*);
-                $(
-                    unsafe {
-                        let v = sandcrust.get_var_in_shm(&$x);
-                        *v = $x;
-                    };
-                )*
-                exit(0);
-            }
-            Err(e) => println!("sandcrust: fork() failed with error {}", e),
-        }
-    }}
-    */
 }
