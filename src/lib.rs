@@ -100,33 +100,42 @@ macro_rules! add_size {
 
 
 #[macro_export]
-macro_rules! sandbox_me {
-    // FIXME
-    // handle no arg and/or ret val cases here
-    // also FIXME: don't repeat all that code, nest macros where needed
-    // and more: use $crate
-
+macro_rules! store_vars {
     (&mut $head:ident) => {
         println!("single mut ref: {}", $head);
     };
     (&mut $head:ident, $($tail:tt)*) => {
         println!("process mut ref: {}", $head);
-        sandbox_me!($($tail)*);
+        store_vars!($($tail)*);
     };
     (&$head:ident) => {
         println!("single ref: {}", $head);
     };
     (&$head:ident, $($tail:tt)+) => {
         println!("process ref: {}", $head);
-        sandbox_me!($($tail)*);
+        store_vars!($($tail)*);
     };
     ($head:ident) => {
         println!("single var: {}", $head);
     };
     ($head:ident, $($tail:tt)+) => {
         println!("process var: {}", $head);
-        sandbox_me!($($tail)*);
+        store_vars!($($tail)*);
     };
+
+    () => {
+         println!("match empty");
+    };
+}
+
+
+#[macro_export]
+macro_rules! sandbox_me {
+    // FIXME
+    // handle no arg and/or ret val cases here
+    // also FIXME: don't repeat all that code, nest macros where needed
+    // and more: use $crate
+
     // potentially args, no retval
      ($f:ident($($x:tt)*)) => {{
         let mut size:usize = 8;
@@ -139,7 +148,7 @@ macro_rules! sandbox_me {
             Ok(ForkResult::Child) => {
                 sandcrust.setup_child();
                 $f($($x)*);
-                sandbox_me!($($x)*);
+                store_vars!($($x)*);
                 /*
                 $(
                     unsafe {
@@ -153,7 +162,4 @@ macro_rules! sandbox_me {
             Err(e) => println!("sandcrust: fork() failed with error {}", e),
         }
      }};
-     () => {
-         println!("match empty");
-     };
 }
