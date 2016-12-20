@@ -103,10 +103,16 @@ macro_rules! add_size {
 #[macro_export]
 macro_rules! store_vars {
     ($sandcrust:ident, &mut $head:ident) => {
-        println!("single mut ref: {}", $head);
+        unsafe {
+            let v = $sandcrust.get_var_in_shm(&$head);
+            *v = $head;
+        };
     };
     ($sandcrust:ident, &mut $head:ident, $($tail:tt)*) => {
-        println!("process mut ref: {}", $head);
+        unsafe {
+            let v = $sandcrust.get_var_in_shm(&$head);
+            *v = $head;
+        };
         store_vars!($sandcrust, $($tail)*);
     };
     ($sandcrust:ident, &$head:ident) => {
