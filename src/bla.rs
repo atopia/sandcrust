@@ -31,83 +31,59 @@ impl Sandcrust {
     }
 }
 
-macro_rules! process_var {
-    () => {
-        println!("EOtokens");
-    };
 
+                //unsafe {
+  //              let tempvar = $x;
+                //let tempvar = $x;
+//                let v = sandcrust.get_var_in_shm(tempvar);
+ //               *v = *tempvar;
+    //            }; // FIXME ends
+    //
+#[macro_export]
+macro_rules! sandbox_me {
     (&mut $head:ident) => {
         println!("single mut ref: {}", $head);
     };
 
-    (&mut $head:ident, $($tail:tt)+) => {
+    (&mut $head:ident, $($tail:tt)*) => {
         println!("process mut ref: {}", $head);
-        process_var!($($tail)*);
+        sandbox_me!($($tail)*);
     };
 
     (&$head:ident) => {
         println!("single ref: {}", $head);
     };
 
+    (&$head:ident, $($tail:tt)+) => {
+        println!("process ref: {}", $head);
+        sandbox_me!($($tail)*);
+    };
+
+
     ($head:ident) => {
         println!("single var: {}", $head);
     };
 
-    (&$head:ident, $($tail:tt)+) => {
-        println!("process ref: {}", $head);
-        process_var!($($rest)*);
-    };
     ($head:ident, $($tail:tt)+) => {
         println!("process var: {}", $head);
-        process_var!($($tail)*);
+        sandbox_me!($($tail)*);
     };
 
-
-    /*
-    () => {};
-    ($head:ident,$($tail:expr),* ) => {
-        println!("ident head {}", head);
-                //unsafe {
-                //process_var!($x);
-  //              let tempvar = $x;
-                //let tempvar = $x;
-//                let v = sandcrust.get_var_in_shm(tempvar);
- //               *v = *tempvar;
-    //            }; // FIXME ends
-        process_var!($($tail),*);
-    };
-    ($head:expr,$($tail:expr),* ) => {
-        println!("expr head");
-        process_var!($($tail),*);
-    };
-    */
-}
-
-
-#[macro_export]
-macro_rules! sandbox_me {
      ($f:ident()) => {
          println!("match empty");
          $f();
     };
      ($f:ident($($t:tt)+)) => {
-        process_var!($($t)+);
+        sandbox_me!($($t)+);
         //$f($($t)+);
      }
      /*
-     ($f:ident($(&$x:ident ),*)) => {{
-         println!("match ref");
-         $f($($x),*);
-     }};
-     ($f:ident($(&mut $x:ident ),*)) => {{
-    //($f:ident($($x:ident ),*)) => {{
-        /*
+    ($f:ident($($x:ident ),*)) => {{
         let mut size: usize = 8;
         $(
             size += size_of_val(&$x);
         )*
-*/
- //       let mut sandcrust = Sandcrust::new(size);
+        let mut sandcrust = Sandcrust::new(size);
 
             //$f($($x),*);
            process_var!($($x),*);
@@ -140,6 +116,6 @@ pub fn main() {
     sandbox_me!(ref_to_a(a));
     sandbox_me!(ref_to_a(&b));
     sandbox_me!(ref_to_a(&mut b));
-    sandbox_me!(print_a_b(&mut a, &mut b));
+//    sandbox_me!(print_a_b(&mut a, &mut b));
     sandbox_me!(eat_a_b(a, b));
 }
