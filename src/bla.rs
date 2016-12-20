@@ -92,7 +92,7 @@ macro_rules! sandbox_me {
 */
 }
 
-fn print_a_b(a : &mut i32, b : &mut i32) {
+fn write_b_to_a(a : &mut i32, b : &mut i32) {
     *b = *a;
 }
 
@@ -109,7 +109,7 @@ fn ref_to_a(a: &i32) {
 }
 
 fn take_a(a: i32) {
-    println!("this function is passed a ref to {}", a);
+    println!("this function is passed {}", a);
 }
 
 
@@ -120,6 +120,6 @@ pub fn main() {
     sandbox_me!(take_a(a));
     sandbox_me!(ref_to_a(&a));
     sandbox_me!(ref_to_a(&mut b));
-    sandbox_me!(print_a_b(&mut a, &mut b));
+    sandbox_me!(write_b_to_a(&mut a, &mut b));
     sandbox_me!(eat_a_b(a, b));
 }
