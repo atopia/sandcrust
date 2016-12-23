@@ -100,34 +100,26 @@ macro_rules! add_size {
 }
 
 
-//
-// FIXME hard: refactor!
-// - figure out a way to pass 'sandcrust.get_var_in_shm' into the macro
-// - is there a way to create more general matchers?
-pub fn store_vars_wrapper<T> (sandcrust: &mut Sandcrust, var: T) {
-    unsafe {
-        sandcrust.get_var_in_shm(var);
-    }
-}
-
+// FIXME: somehow refactor
 #[macro_export]
-macro_rules! process_vars {
-    ($func:ident, &mut $sandcrust:ident, &mut $head:ident) => { $func(&mut $sandcrust, &$head); };
-    ($func:ident, &mut $sandcrust:ident, &mut $head:ident, $($tail:tt)*) => {
-        $func(&mut $sandcrust, &$head);
-        process_vars!($func, &mut $sandcrust, $($tail)*);
+macro_rules! store_vars {
+    ($sandcrust:ident, &mut $head:ident) => {unsafe {$sandcrust.get_var_in_shm(&$head);};};
+    ($sandcrust:ident, &mut $head:ident, $($tail:tt)*) => {
+        unsafe {$sandcrust.get_var_in_shm(&$head);};
+        store_vars!($sandcrust, $($tail)*);
     };
-    ($func:ident, &mut $sandcrust:ident, &$head:ident) => { $func(&mut $sandcrust, &$head); };
-    ($func:ident, &mut $sandcrust:ident, &$head:ident, $($tail:tt)+) => {
-        $func(&mut $sandcrust, &$head);
-        process_vars!($func, &mut $sandcrust, $($tail)*);
+    ($sandcrust:ident, &$head:ident) => { unsafe {$sandcrust.get_var_in_shm(&$head);}; };
+    ($sandcrust:ident, &$head:ident, $($tail:tt)+) => {
+        unsafe {$sandcrust.get_var_in_shm(&$head);};
+        store_vars!($sandcrust, $($tail)*);
     };
-    ($func:ident, &mut $sandcrust:ident, $head:ident) => { $func(&mut $sandcrust, &$head); };
-    ($func:ident, &mut $sandcrust:ident, $head:ident, $($tail:tt)+) => {
-        $func(&mut $sandcrust, &$head);
-        process_vars!($func, &mut $sandcrust, $($tail)*);
+    ($sandcrust:ident, $head:ident) => { unsafe {$sandcrust.get_var_in_shm(&$head);}; };
+    ($sandcrust:ident, $head:ident, $($tail:tt)+) => {
+        unsafe {$sandcrust.get_var_in_shm(&$head);};
+        store_vars!($sandcrust, $($tail)*);
     };
-    ($func:ident, &mut $sandcrust:ident, ) => { };
+
+    ($sandcrust:ident, ) => {};
 }
 
 
@@ -152,7 +144,7 @@ macro_rules! sandbox_me {
             Ok(ForkResult::Child) => {
                 sandcrust.setup_child();
                 $f($($x)*);
-                process_vars!(store_vars_wrapper, &mut sandcrust, $($x)*);
+                store_vars!(sandcrust, $($x)*);
                 exit(0);
             }
             Err(e) => println!("sandcrust: fork() failed with error {}", e),
