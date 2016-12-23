@@ -73,7 +73,7 @@ impl Sandcrust {
 
     pub fn join_child(&mut self, child: pid_t) {
         match waitpid(child, None) {
-            Ok(_) => println!("sandcrust: waitpid() successful"),
+            Ok(_) => {},
             Err(e) => println!("sandcrust waitpid() failed with error {}", e),
         }
     }
@@ -82,11 +82,12 @@ impl Sandcrust {
         self.shm.as_ptr()
     }
 
-    pub unsafe fn get_var_in_shm<T>(&mut self, val: &T) -> *mut T {
-        let size = size_of_val(val);
+    pub unsafe fn get_var_in_shm<T>(&mut self, var: T) {
+        let size = size_of_val(&var);
         let memptr_orig = self.memptr;
         self.memptr.offset(size as isize);
-        memptr_orig as *mut T
+        let typed_ptr = memptr_orig as *mut T;
+        *typed_ptr = var;
     }
 }
 
@@ -99,52 +100,34 @@ macro_rules! add_size {
 }
 
 
-// FIXME: somehow refactor
-#[macro_export]
-macro_rules! store_vars {
-    ($sandcrust:ident, &mut $head:ident) => {
-        unsafe {
-            let v = $sandcrust.get_var_in_shm(&$head);
-            *v = $head;
-        };
-    };
-    ($sandcrust:ident, &mut $head:ident, $($tail:tt)*) => {
-        unsafe {
-            let v = $sandcrust.get_var_in_shm(&$head);
-            *v = $head;
-        };
-        store_vars!($sandcrust, $($tail)*);
-    };
-    ($sandcrust:ident, &$head:ident) => {
-        unsafe {
-            let v = $sandcrust.get_var_in_shm(&$head);
-            *v = $head;
-        };
-    };
-    ($sandcrust:ident, &$head:ident, $($tail:tt)+) => {
-        unsafe {
-            let v = $sandcrust.get_var_in_shm(&$head);
-            *v = $head;
-        };
-        store_vars!($sandcrust, $($tail)*);
-    };
-    ($sandcrust:ident, $head:ident) => {
-        unsafe {
-            let v = $sandcrust.get_var_in_shm(&$head);
-            *v = $head;
-        };
-    };
-    ($sandcrust:ident, $head:ident, $($tail:tt)+) => {
-        unsafe {
-            let v = $sandcrust.get_var_in_shm(&$head);
-            *v = $head;
-        };
-        store_vars!($sandcrust, $($tail)*);
-    };
+//
+// FIXME hard: refactor!
+// - figure out a way to pass 'sandcrust.get_var_in_shm' into the macro
+// - is there a way to create more general matchers?
+pub fn store_vars_wrapper<T> (sandcrust: &mut Sandcrust, var: T) {
+    unsafe {
+        sandcrust.get_var_in_shm(var);
+    }
+}
 
-    ($sandcrust:ident, ) => {
-         println!("match empty");
+#[macro_export]
+macro_rules! process_vars {
+    ($func:ident, &mut $sandcrust:ident, &mut $head:ident) => { $func(&mut $sandcrust, &$head); };
+    ($func:ident, &mut $sandcrust:ident, &mut $head:ident, $($tail:tt)*) => {
+        $func(&mut $sandcrust, &$head);
+        process_vars!($func, &mut $sandcrust, $($tail)*);
     };
+    ($func:ident, &mut $sandcrust:ident, &$head:ident) => { $func(&mut $sandcrust, &$head); };
+    ($func:ident, &mut $sandcrust:ident, &$head:ident, $($tail:tt)+) => {
+        $func(&mut $sandcrust, &$head);
+        process_vars!($func, &mut $sandcrust, $($tail)*);
+    };
+    ($func:ident, &mut $sandcrust:ident, $head:ident) => { $func(&mut $sandcrust, &$head); };
+    ($func:ident, &mut $sandcrust:ident, $head:ident, $($tail:tt)+) => {
+        $func(&mut $sandcrust, &$head);
+        process_vars!($func, &mut $sandcrust, $($tail)*);
+    };
+    ($func:ident, &mut $sandcrust:ident, ) => { };
 }
 
 
@@ -162,11 +145,14 @@ macro_rules! sandbox_me {
 
         let mut sandcrust = Sandcrust::new(size).finalize();
         match fork() {
-            Ok(ForkResult::Parent { child, .. }) => sandcrust.join_child(child),
+            Ok(ForkResult::Parent { child, .. }) => {
+                sandcrust.join_child(child);
+                //reprocess_vars!(sandcrust, $($x)*);
+            },
             Ok(ForkResult::Child) => {
                 sandcrust.setup_child();
                 $f($($x)*);
-                store_vars!(sandcrust, $($x)*);
+                process_vars!(store_vars_wrapper, &mut sandcrust, $($x)*);
                 exit(0);
             }
             Err(e) => println!("sandcrust: fork() failed with error {}", e),
