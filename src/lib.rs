@@ -89,6 +89,16 @@ impl Sandcrust {
         let typed_ptr = memptr_orig as *mut T;
         *typed_ptr = var;
     }
+
+    pub unsafe fn restore_var_from_shm<T>(&mut self, var: T) {
+        let size = size_of_val(&var);
+        let memptr_orig = self.memptr;
+        self.memptr.offset(size as isize);
+        let typed_ptr = memptr_orig as *mut T;
+        // FIXME this works, check receiver type
+        //let memref: &mut u8 = unsafe { &mut *memptr };
+        //var = typed_ptr;
+    }
 }
 
 #[doc(hidden)]
@@ -124,6 +134,19 @@ macro_rules! store_vars {
 
 
 #[macro_export]
+macro_rules! restore_vars {
+    // only restore mut types
+    ($sandcrust:ident, &mut $head:ident) => {unsafe {
+        $sandcrust.restore_var_from_shm(&$head);};};
+    ($sandcrust:ident, &mut $head:ident, $($tail:tt)*) => {
+        unsafe {$sandcrust.restore_var_from_shm(&$head);};
+        restore_vars!($sandcrust, $($tail)*);
+    };
+    ($sandcrust:ident, $($x:tt)*) => { };
+}
+
+
+#[macro_export]
 macro_rules! sandbox_me {
     // FIXME
     // handle no arg and/or ret val cases here
@@ -139,7 +162,7 @@ macro_rules! sandbox_me {
         match fork() {
             Ok(ForkResult::Parent { child, .. }) => {
                 sandcrust.join_child(child);
-                //reprocess_vars!(sandcrust, $($x)*);
+                restore_vars!(sandcrust, $($x)*);
             },
             Ok(ForkResult::Child) => {
                 sandcrust.setup_child();
