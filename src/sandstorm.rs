@@ -55,6 +55,11 @@ fn ref_to_a(a: &i32) {
     println!("this function is passed a ref to {}", a);
 }
 
+fn inc_b(b: &mut i32) {
+    *b += 1;
+    println!("b was inc'ed to {}", b);
+}
+
 fn take_a(a: i32) {
     println!("this function is passed {}", a);
 }
@@ -72,7 +77,7 @@ pub fn main() {
     sandbox_me!(empty());
     sandbox_me!(take_a(a));
     sandbox_me!(ref_to_a(&a));
-    sandbox_me!(ref_to_a(&mut b));
+    sandbox_me!(inc_b(&mut b));
     sandbox_me!(write_b_to_a(&mut a, &mut b));
     sandbox_me!(eat_a_b(a, b));
     println!("b is now: {}", b);
