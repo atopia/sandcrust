@@ -13,6 +13,8 @@ use std::fs::{OpenOptions, remove_file};
 use nix::sys::wait::waitpid;
 use memmap::{Mmap, Protection};
 
+use std::fmt::Display;
+
 use sandheap as sandbox;
 
 #[cfg(test)]
@@ -90,14 +92,23 @@ impl Sandcrust {
         *typed_ptr = var;
     }
 
-    pub unsafe fn restore_var_from_shm<T>(&mut self, var: T) {
-        let size = size_of_val(&var);
+    pub unsafe fn move_memptr<T: Display>(&mut self, var: &T) {
+        let size = size_of_val(var);
+        self.memptr.offset(size as isize);
+    }
+
+    pub unsafe fn restore_var_from_shm<T: Display>(&mut self, mut var: &mut T) {
+        println!("XXX var was: {}", var);
+        let size = size_of_val(var);
         let memptr_orig = self.memptr;
         self.memptr.offset(size as isize);
-        let typed_ptr = memptr_orig as *mut T;
-        // FIXME this works, check receiver type
-        //let memref: &mut u8 = unsafe { &mut *memptr };
-        //var = typed_ptr;
+        let typed_ptr: *mut T = memptr_orig as *mut T;
+        {
+            let newvar = &mut var;
+            *newvar = &mut *typed_ptr;
+            println!("XXX newvar is: {}", newvar);
+        }
+        println!("XXX var is: {}", var);
     }
 }
 
@@ -128,7 +139,6 @@ macro_rules! store_vars {
         unsafe {$sandcrust.get_var_in_shm(&$head);};
         store_vars!($sandcrust, $($tail)*);
     };
-
     ($sandcrust:ident, ) => {};
 }
 
@@ -136,13 +146,22 @@ macro_rules! store_vars {
 #[macro_export]
 macro_rules! restore_vars {
     // only restore mut types
-    ($sandcrust:ident, &mut $head:ident) => {unsafe {
-        $sandcrust.restore_var_from_shm(&$head);};};
+    ($sandcrust:ident, &mut $head:ident) => {unsafe {$sandcrust.restore_var_from_shm(&mut $head);};};
     ($sandcrust:ident, &mut $head:ident, $($tail:tt)*) => {
-        unsafe {$sandcrust.restore_var_from_shm(&$head);};
+        unsafe {$sandcrust.restore_var_from_shm(&mut $head);};
         restore_vars!($sandcrust, $($tail)*);
     };
-    ($sandcrust:ident, $($x:tt)*) => { };
+    ($sandcrust:ident, &$head:ident) => { unsafe {$sandcrust.move_memptr(&$head);}; };
+    ($sandcrust:ident, &$head:ident, $($tail:tt)+) => {
+        unsafe {$sandcrust.move_memptr(&$head);};
+        restore_vars!($sandcrust, $($tail)*);
+    };
+    ($sandcrust:ident, $head:ident) => { unsafe {$sandcrust.move_memptr(&$head);}; };
+    ($sandcrust:ident, $head:ident, $($tail:tt)+) => {
+        unsafe {$sandcrust.move_memptr(&$head);};
+        restore_vars!($sandcrust, $($tail)*);
+    };
+    ($sandcrust:ident, ) => {};
 }
 
 
