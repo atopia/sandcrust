@@ -8,6 +8,7 @@ pub use nix::unistd::{fork, ForkResult};
 pub use nix::libc::pid_t;
 pub use std::process::exit;
 pub use std::mem::size_of_val;
+pub use std::mem::transmute;
 
 use std::fs::{OpenOptions, remove_file};
 use nix::sys::wait::waitpid;
@@ -89,7 +90,9 @@ impl Sandcrust {
         let memptr_orig = self.memptr;
         self.memptr.offset(size as isize);
         let typed_ptr = memptr_orig as *mut T;
-        *typed_ptr = var;
+        // FIXME: really necessary?
+        let typed_ref: &mut T = transmute(&mut *memptr_orig);
+        *typed_ref = var;
     }
 
     pub unsafe fn move_memptr<T: Display>(&mut self, var: &T) {
@@ -102,13 +105,11 @@ impl Sandcrust {
         let size = size_of_val(var);
         let memptr_orig = self.memptr;
         self.memptr.offset(size as isize);
-        let typed_ptr: *mut T = memptr_orig as *mut T;
-        {
-            let newvar = &mut var;
-            *newvar = &mut *typed_ptr;
-            println!("XXX newvar is: {}", newvar);
-        }
-        println!("XXX var is: {}", var);
+        let memref: &T = transmute(&*memptr_orig);
+        println!("memref is: {}", memref);
+        // still doesn't work as in simple example :/
+        //var = memref;
+       println!("XXX var is: {}", var);
     }
 }
 
@@ -173,6 +174,7 @@ macro_rules! sandbox_me {
 
     // potentially args, no retval
      ($f:ident($($x:tt)*)) => {{
+         // FIXME 0
         let mut size:usize = 8;
         size += add_size!($($x)*);
         println!("size is: {}", size);
