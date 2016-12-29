@@ -9,12 +9,11 @@ pub use nix::libc::pid_t;
 pub use std::process::exit;
 pub use std::mem::size_of_val;
 pub use std::mem::transmute;
+pub use std::mem::transmute_copy;
 
 use std::fs::{OpenOptions, remove_file};
 use nix::sys::wait::waitpid;
 use memmap::{Mmap, Protection};
-
-use std::fmt::Display;
 
 use sandheap as sandbox;
 
@@ -89,27 +88,20 @@ impl Sandcrust {
         let size = size_of_val(&var);
         let memptr_orig = self.memptr;
         self.memptr.offset(size as isize);
-        let typed_ptr = memptr_orig as *mut T;
-        // FIXME: really necessary?
+        // FIXME: transmute really necessary?
         let typed_ref: &mut T = transmute(&mut *memptr_orig);
         *typed_ref = var;
     }
 
-    pub unsafe fn move_memptr<T: Display>(&mut self, var: &T) {
+    pub unsafe fn move_memptr<T>(&mut self, var: &T) {
         let size = size_of_val(var);
         self.memptr.offset(size as isize);
     }
 
-    pub unsafe fn restore_var_from_shm<T: Display>(&mut self, mut var: &mut T) {
-        println!("XXX var was: {}", var);
+    pub unsafe fn restore_var_from_shm<T>(&self, var: &mut T) {
         let size = size_of_val(var);
-        let memptr_orig = self.memptr;
+        *var = transmute_copy(&*self.memptr);
         self.memptr.offset(size as isize);
-        let memref: &T = transmute(&*memptr_orig);
-        println!("memref is: {}", memref);
-        // still doesn't work as in simple example :/
-        //var = memref;
-       println!("XXX var is: {}", var);
     }
 }
 
