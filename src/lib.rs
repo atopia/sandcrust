@@ -17,12 +17,6 @@ use memmap::{Mmap, Protection};
 
 use sandheap as sandbox;
 
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn it_works() {}
-}
-
 
 struct Shm {
     file_mmap: Mmap,
@@ -169,7 +163,6 @@ macro_rules! sandbox_me {
          // FIXME 0
         let mut size:usize = 8;
         size += add_size!($($x)*);
-        println!("size is: {}", size);
 
         let mut sandcrust = Sandcrust::new(size).finalize();
         match fork() {
@@ -186,4 +179,22 @@ macro_rules! sandbox_me {
             Err(e) => println!("sandcrust: fork() failed with error {}", e),
         }
      }};
+}
+
+
+#[cfg(test)]
+mod internal_tests {
+    use super::*;
+    #[test]
+    fn calc_size_simple() {
+        let x: i32 = 23;
+        assert!(add_size!(x) == 4);
+    }
+
+    #[test]
+    fn calc_size_multi() {
+        let x: i32 = 23;
+        let y: u8 = 23;
+        assert!(add_size!(x, y) == 5);
+    }
 }
