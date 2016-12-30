@@ -40,29 +40,6 @@ fn write_b_to_a(a : &mut i32, b : &mut i32) {
     println!("a is now: {}", a);
 }
 
-fn eat_a_b(a: i32, mut b: i32) {
-    if b > a {
-        b = a;
-    }
-    println!("b changed to: {}", b);
-}
-
-fn empty() {
-    println!("this function args is none");
-}
-
-fn ref_to_a(a: &i32) {
-    println!("this function is passed a ref to {}", a);
-}
-
-fn inc_b(b: &mut i32) {
-    *b += 1;
-    println!("b was inc'ed to {}", b);
-}
-
-fn take_a(a: i32) {
-    println!("this function is passed {}", a);
-}
 
 pub fn main() {
     println!("PARENT: now sandboxing child");
@@ -74,11 +51,6 @@ pub fn main() {
     let mut a = 23;
     let mut b = 42;
     println!("b was: {}", b);
-    sandbox_me!(empty());
-    sandbox_me!(take_a(a));
-    sandbox_me!(ref_to_a(&a));
-    sandbox_me!(inc_b(&mut b));
     sandbox_me!(write_b_to_a(&mut a, &mut b));
-    sandbox_me!(eat_a_b(a, b));
     println!("b is now: {}", b);
 }
