@@ -6,8 +6,6 @@ authors = ["Benjamin Lamowski <benjamin@lamowski.net>"]
 [lib]
 name = "sandcrust"
 path = "src/lib.rs"
-crate-type = ["dylib"]
-plugin = true
 
 [[bin]]
 name = "sandstorm"
