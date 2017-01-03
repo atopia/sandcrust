@@ -97,22 +97,21 @@ impl Sandcrust {
 
     pub unsafe fn get_var_in_shm<T>(&mut self, var: T) {
         let size = add_size!(var);
-        let memptr_orig = self.memptr;
-        self.memptr.offset(size as isize);
         // FIXME: transmute really necessary?
-        let typed_ref: &mut T = transmute(&mut *memptr_orig);
+        let typed_ref: &mut T = transmute(&mut *self.memptr);
         *typed_ref = var;
+        self.memptr = self.memptr.offset(size as isize);
     }
 
     pub unsafe fn move_memptr<T>(&mut self, var: &T) {
         let size = add_size!(var);
-        self.memptr.offset(size as isize);
+        self.memptr = self.memptr.offset(size as isize);
     }
 
-    pub unsafe fn restore_var_from_shm<T>(&self, var: &mut T) {
+    pub unsafe fn restore_var_from_shm<T>(&mut self, var: &mut T) {
         let size = add_size!(var);
         *var = transmute_copy(&*self.memptr);
-        self.memptr.offset(size as isize);
+        self.memptr = self.memptr.offset(size as isize);
     }
 }
 
@@ -120,9 +119,9 @@ impl Sandcrust {
 // FIXME: somehow refactor
 #[macro_export]
 macro_rules! store_vars {
-    ($sandcrust:ident, &mut $head:ident) => {unsafe {$sandcrust.get_var_in_shm(&$head);};};
+    ($sandcrust:ident, &mut $head:ident) => {unsafe {$sandcrust.get_var_in_shm($head);};};
     ($sandcrust:ident, &mut $head:ident, $($tail:tt)*) => {
-        unsafe {$sandcrust.get_var_in_shm(&$head);};
+        unsafe {$sandcrust.get_var_in_shm($head);};
         store_vars!($sandcrust, $($tail)*);
     };
     ($sandcrust:ident, &$head:ident) => { unsafe {$sandcrust.get_var_in_shm(&$head);}; };
