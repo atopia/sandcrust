@@ -13,6 +13,7 @@ pub use std::mem::transmute_copy;
 
 use std::fs::{OpenOptions, remove_file};
 use nix::sys::wait::waitpid;
+use nix::unistd::gettid;
 use memmap::{Mmap, Protection};
 
 use sandheap as sandbox;
@@ -26,15 +27,18 @@ struct Shm {
 // FIXME nicer error handling and stuff
 impl Shm {
     fn new(size: u64) -> Shm {
-        let path: &'static str = "/dev/shm/sandcrust_shm";
+        // FIXME any nicer way to do this?
+        let basepath = "/dev/shm/sandcrust_shm_".to_string();
+        let pid_string = gettid().to_string();
+        let path = basepath + &pid_string;
         let f = OpenOptions::new()
             .read(true)
             .write(true)
             .create(true)
-            .open(path)
+            .open(&path)
             .unwrap();
         f.set_len(size).unwrap();
-        remove_file(path).unwrap();
+        remove_file(&path).unwrap();
         Shm { file_mmap: Mmap::open(&f, Protection::ReadWrite).unwrap() }
     }
 
