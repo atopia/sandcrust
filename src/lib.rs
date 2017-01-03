@@ -106,9 +106,13 @@ impl Sandcrust {
 #[doc(hidden)]
 #[macro_export]
 macro_rules! add_size {
+    (&mut $head:ident) => (size_of_val(&$head));
+    (&mut $head:ident, $($tail:tt)+) => (size_of_val(&$head) + add_size!($($tail)+));
+    (&$head:ident) => (size_of_val(&$head));
+    (&$head:ident, $($tail:tt)+) => (size_of_val(&$head) + add_size!($($tail)+));
+    ($head:ident) => (size_of_val(&$head));
+    ($head:ident, $($tail:tt)+) => (size_of_val(&$head) + add_size!($($tail)+));
     () => (0);
-    ($head:expr) => (size_of_val(&$head));
-    ($head:expr, $($tail:expr),*) => (size_of_val(&$head) + add_size!($($tail),*));
 }
 
 
@@ -189,8 +193,30 @@ macro_rules! sandbox_me {
 #[cfg(test)]
 mod internal_tests {
     use super::*;
+
     #[test]
-    fn calc_size_simple() {
+    fn calc_ref_u8_size() {
+        let x: u8 = 8;
+        assert!(add_size!(&x) == 1);
+    }
+
+    #[test]
+    fn calc_ref_mut_u8_size() {
+        let mut x:u8 = 8;
+        assert!(add_size!(&mut x) == 1);
+        x += 1;
+        if x < 8 {
+        }
+    }
+
+    #[test]
+    fn calc_u8_size() {
+        let x: u8 = 8;
+        assert!(add_size!(x) == 1);
+    }
+
+    #[test]
+    fn calc_i32_size() {
         let x: i32 = 23;
         assert!(add_size!(x) == 4);
     }
@@ -200,5 +226,16 @@ mod internal_tests {
         let x: i32 = 23;
         let y: u8 = 23;
         assert!(add_size!(x, y) == 5);
+    }
+
+    #[test]
+    fn calc_size_ref_multi() {
+        let x: i32 = 23;
+        let y: u8 = 23;
+        let mut z: u64 = 23;
+        assert!(add_size!(x, &y, &mut z) == 13);
+        z += 1;
+        if z < 8 {
+        }
     }
 }
