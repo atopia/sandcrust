@@ -48,6 +48,19 @@ impl Shm {
 }
 
 
+#[doc(hidden)]
+#[macro_export]
+macro_rules! add_size {
+    (&mut $head:ident) => (size_of_val(&$head));
+    (&mut $head:ident, $($tail:tt)+) => (size_of_val(&$head) + add_size!($($tail)+));
+    (&$head:ident) => (size_of_val(&$head));
+    (&$head:ident, $($tail:tt)+) => (size_of_val(&$head) + add_size!($($tail)+));
+    ($head:ident) => (size_of_val(&$head));
+    ($head:ident, $($tail:tt)+) => (size_of_val(&$head) + add_size!($($tail)+));
+    () => (0);
+}
+
+
 // needed as a wrapper for all the imported uses
 #[doc(hidden)]
 pub struct Sandcrust {
@@ -83,7 +96,7 @@ impl Sandcrust {
     }
 
     pub unsafe fn get_var_in_shm<T>(&mut self, var: T) {
-        let size = size_of_val(&var);
+        let size = add_size!(var);
         let memptr_orig = self.memptr;
         self.memptr.offset(size as isize);
         // FIXME: transmute really necessary?
@@ -92,27 +105,15 @@ impl Sandcrust {
     }
 
     pub unsafe fn move_memptr<T>(&mut self, var: &T) {
-        let size = size_of_val(var);
+        let size = add_size!(var);
         self.memptr.offset(size as isize);
     }
 
     pub unsafe fn restore_var_from_shm<T>(&self, var: &mut T) {
-        let size = size_of_val(var);
+        let size = add_size!(var);
         *var = transmute_copy(&*self.memptr);
         self.memptr.offset(size as isize);
     }
-}
-
-#[doc(hidden)]
-#[macro_export]
-macro_rules! add_size {
-    (&mut $head:ident) => (size_of_val(&$head));
-    (&mut $head:ident, $($tail:tt)+) => (size_of_val(&$head) + add_size!($($tail)+));
-    (&$head:ident) => (size_of_val(&$head));
-    (&$head:ident, $($tail:tt)+) => (size_of_val(&$head) + add_size!($($tail)+));
-    ($head:ident) => (size_of_val(&$head));
-    ($head:ident, $($tail:tt)+) => (size_of_val(&$head) + add_size!($($tail)+));
-    () => (0);
 }
 
 
