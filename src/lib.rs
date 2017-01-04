@@ -104,12 +104,14 @@ impl Sandcrust {
     }
 
     pub unsafe fn move_memptr<T>(&mut self, var: &T) {
-        let size = add_size!(var);
+        // FIXME add_size wouldn't catch a double deref, so for now this
+        let size = size_of_val(&*var);
         self.memptr = self.memptr.offset(size as isize);
     }
 
     pub unsafe fn restore_var_from_shm<T>(&mut self, var: &mut T) {
-        let size = add_size!(var);
+        // FIXME add_size wouldn't catch a double deref, so for now this
+        let size = size_of_val(&*var);
         *var = transmute_copy(&*self.memptr);
         self.memptr = self.memptr.offset(size as isize);
     }
@@ -124,14 +126,14 @@ macro_rules! store_vars {
         unsafe {$sandcrust.get_var_in_shm($head);};
         store_vars!($sandcrust, $($tail)*);
     };
-    ($sandcrust:ident, &$head:ident) => { unsafe {$sandcrust.get_var_in_shm(&$head);}; };
+    ($sandcrust:ident, &$head:ident) => { unsafe {$sandcrust.get_var_in_shm($head);}; };
     ($sandcrust:ident, &$head:ident, $($tail:tt)+) => {
-        unsafe {$sandcrust.get_var_in_shm(&$head);};
+        unsafe {$sandcrust.get_var_in_shm($head);};
         store_vars!($sandcrust, $($tail)*);
     };
-    ($sandcrust:ident, $head:ident) => { unsafe {$sandcrust.get_var_in_shm(&$head);}; };
+    ($sandcrust:ident, $head:ident) => { unsafe {$sandcrust.get_var_in_shm($head);}; };
     ($sandcrust:ident, $head:ident, $($tail:tt)+) => {
-        unsafe {$sandcrust.get_var_in_shm(&$head);};
+        unsafe {$sandcrust.get_var_in_shm($head);};
         store_vars!($sandcrust, $($tail)*);
     };
     ($sandcrust:ident, ) => {};
@@ -207,6 +209,15 @@ mod internal_tests {
         x += 1;
         if x < 8 {
         }
+    }
+
+    #[test]
+    // FIXME
+    #[ignore]
+    fn calc_double_ref_u8_size() {
+        let x: u8 = 8;
+        let y = &x;
+        assert!(add_size!(&y) == 1);
     }
 
     #[test]
