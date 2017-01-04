@@ -35,22 +35,9 @@ fn get_mnt_ns() {
 }
 
 
-fn write_b_to_a(a : &mut i32, b : &mut i32) {
-    *a = *b;
-    println!("CHILD: a is now: {}", a);
-}
-
-
 pub fn main() {
     println!("PARENT: now sandboxing child");
     sandbox_me!(get_mnt_ns());
-
     println!("PARENT:");
     get_mnt_ns();
-
-    let mut a = 23;
-    let mut b = 42;
-    println!("PARENT: a was: {}", a);
-    sandbox_me!(write_b_to_a(&mut a, &mut b));
-    println!("PARENT: a is now: {}", a);
 }
