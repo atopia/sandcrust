@@ -95,4 +95,20 @@ mod val_restore {
         assert!(b == 4);
         assert!(c == 1);
     }
+
+    fn mult_mut_args_2(a: &mut i32, b: i32, c: &mut i32) {
+        let d = b + 3;
+        *a = d;
+        *c = b;
+    }
+
+    #[test]
+    fn mult_mut_args_2_test() {
+        let mut a = 1;
+        let b = 2;
+        let mut c = 3;
+        sandbox_me!(mult_mut_args_2(&mut a, b, &mut c));
+        assert!(a == 5);
+        assert!(c == 2);
+    }
 }
