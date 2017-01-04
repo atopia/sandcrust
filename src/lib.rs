@@ -12,6 +12,13 @@ use std::os::unix::io::FromRawFd;
 
 use sandheap as sandbox;
 
+#[derive(RustcEncodable, RustcDecodable, PartialEq)]
+pub enum SandcrustReturn<T> {
+    Real(T),
+    Fake(i32),
+}
+
+
 // needed as a wrapper for all the imported uses
 #[doc(hidden)]
 pub struct Sandcrust {
@@ -45,6 +52,10 @@ impl Sandcrust {
 
     pub fn restore_var_from_fifo<T: ::rustc_serialize::Decodable>(&mut self, var: &mut T) {
         *var = ::bincode::rustc_serialize::decode_from(&mut self.file_out, ::bincode::SizeLimit::Infinite).unwrap();
+    }
+
+    pub fn decode_retval<T: ::rustc_serialize::Decodable>(&mut self) -> SandcrustReturn<T> {
+        ::bincode::rustc_serialize::decode_from(&mut self.file_out, ::bincode::SizeLimit::Infinite).unwrap()
     }
 }
 
@@ -96,18 +107,27 @@ macro_rules! sandbox_me {
     // potentially args, no retval
      ($f:ident($($x:tt)*)) => {{
         let mut sandcrust = Sandcrust::new();
-        match sandcrust_nix::unistd::fork() {
+        let child: sandcrust_nix::libc::pid_t = match sandcrust_nix::unistd::fork() {
             Ok(sandcrust_nix::unistd::ForkResult::Parent { child, .. }) => {
                 restore_vars!(sandcrust, $($x)*);
-                sandcrust.join_child(child);
+                child
             },
             Ok(sandcrust_nix::unistd::ForkResult::Child) => {
                 sandcrust.setup_child();
-                $f($($x)*);
+               let retval = $f($($x)*);
                 store_vars!(sandcrust, $($x)*);
+                // test for an empty ( () ) return value and construct enum accordingly
+                let retval_enum = if ::std::mem::size_of_val(&retval) > 0 { SandcrustReturn::Real(retval) } else { SandcrustReturn::Fake(0) };
+                sandcrust.put_var_in_fifo(&retval_enum);
                 ::std::process::exit(0);
             }
-            Err(e) => println!("sandcrust: fork() failed with error {}", e),
-        }
+            Err(e) => panic!("sandcrust: fork() failed with error {}", e),
+        };
+        let retval = match sandcrust.decode_retval() {
+            SandcrustReturn::Real(value) => value,
+            SandcrustReturn::Fake(int) => int,
+        };
+        sandcrust.join_child(child);
+        retval
      }};
 }
