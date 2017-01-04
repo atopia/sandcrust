@@ -17,7 +17,7 @@ mod val_restore {
         assert!(a == 24);
     }
 
-    fn second_to_first(a : &mut i32, b : i32) {
+    fn second_to_first(a: &mut i32, b: i32) {
         *a = b;
     }
 
@@ -29,7 +29,7 @@ mod val_restore {
         assert!(a == 42);
     }
 
-    fn first_to_second(a : i32, b : &mut i32) {
+    fn first_to_second(a: i32, b: &mut i32) {
         *b = a;
     }
 

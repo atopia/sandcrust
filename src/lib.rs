@@ -71,7 +71,10 @@ pub struct Sandcrust {
 impl Sandcrust {
     pub fn new(size: usize) -> Sandcrust {
         let size = size as u64;
-        Sandcrust { shm: Shm::new(size), memptr: 0 as *mut u8 }
+        Sandcrust {
+            shm: Shm::new(size),
+            memptr: 0 as *mut u8,
+        }
     }
 
     // FIXME the Method Syntax is the biggest anti-feature in Rust
@@ -86,7 +89,7 @@ impl Sandcrust {
 
     pub fn join_child(&mut self, child: pid_t) {
         match waitpid(child, None) {
-            Ok(_) => {},
+            Ok(_) => {}
             Err(e) => println!("sandcrust waitpid() failed with error {}", e),
         }
     }
@@ -143,7 +146,9 @@ macro_rules! store_vars {
 #[macro_export]
 macro_rules! restore_vars {
     // only restore mut types
-    ($sandcrust:ident, &mut $head:ident) => {unsafe {$sandcrust.restore_var_from_shm(&mut $head);};};
+    ($sandcrust:ident, &mut $head:ident) => {
+        unsafe {$sandcrust.restore_var_from_shm(&mut $head);};
+    };
     ($sandcrust:ident, &mut $head:ident, $($tail:tt)*) => {
         unsafe {$sandcrust.restore_var_from_shm(&mut $head);};
         restore_vars!($sandcrust, $($tail)*);
@@ -204,7 +209,7 @@ mod internal_tests {
 
     #[test]
     fn calc_ref_mut_u8_size() {
-        let mut x:u8 = 8;
+        let mut x: u8 = 8;
         assert!(add_size!(&mut x) == 1);
         x += 1;
         if x < 8 {

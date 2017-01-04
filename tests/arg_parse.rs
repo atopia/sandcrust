@@ -5,7 +5,7 @@ use sandcrust::*;
 mod arg_parse {
     use super::*;
 
-    fn empty() { }
+    fn empty() {}
 
     #[test]
     fn empty_test() {
@@ -41,7 +41,7 @@ mod arg_parse {
     }
 
     #[test]
-    fn by_mut_value_simple_test () {
+    fn by_mut_value_simple_test() {
         let a = 4;
         sandbox_me!(by_mut_value_simple(a));
     }
