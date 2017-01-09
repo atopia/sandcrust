@@ -14,6 +14,5 @@ path = "src/sandstorm.rs"
 [dependencies]
 nix =  { git = "https://github.com/nix-rust/nix" }
 libc = "*"
-errno = "*"
 sandheap = { path = "../sandheap" }
 memmap= "*"
