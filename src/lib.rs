@@ -1,19 +1,9 @@
-extern crate nix;
+extern crate memmap;
+pub extern crate nix;
 
 extern crate sandheap;
-extern crate memmap;
 
-// FIXME still too many exported uses
-pub use nix::unistd::{fork, ForkResult};
-pub use nix::libc::pid_t;
-pub use std::process::exit;
-pub use std::mem::size_of_val;
-pub use std::mem::transmute;
-pub use std::mem::transmute_copy;
-
-use std::fs::{OpenOptions, remove_file};
-use nix::sys::wait::waitpid;
-use nix::unistd::gettid;
+pub use nix as sandcrust_nix;
 use memmap::{Mmap, Protection};
 
 use sandheap as sandbox;
@@ -29,16 +19,16 @@ impl Shm {
     fn new(size: u64) -> Shm {
         // FIXME any nicer way to do this?
         let basepath = "/dev/shm/sandcrust_shm_".to_string();
-        let pid_string = gettid().to_string();
+        let pid_string = sandcrust_nix::unistd::gettid().to_string();
         let path = basepath + &pid_string;
-        let f = OpenOptions::new()
+        let f = std::fs::OpenOptions::new()
             .read(true)
             .write(true)
             .create(true)
             .open(&path)
             .unwrap();
         f.set_len(size).unwrap();
-        remove_file(&path).unwrap();
+        std::fs::remove_file(&path).unwrap();
         Shm { file_mmap: Mmap::open(&f, Protection::ReadWrite).unwrap() }
     }
 
@@ -51,12 +41,12 @@ impl Shm {
 #[doc(hidden)]
 #[macro_export]
 macro_rules! add_size {
-    (&mut $head:ident) => (size_of_val(&$head));
-    (&mut $head:ident, $($tail:tt)+) => (size_of_val(&$head) + add_size!($($tail)+));
-    (&$head:ident) => (size_of_val(&$head));
-    (&$head:ident, $($tail:tt)+) => (size_of_val(&$head) + add_size!($($tail)+));
-    ($head:ident) => (size_of_val(&$head));
-    ($head:ident, $($tail:tt)+) => (size_of_val(&$head) + add_size!($($tail)+));
+    (&mut $head:ident) => (std::mem::size_of_val(&$head));
+    (&mut $head:ident, $($tail:tt)+) => (std::mem::size_of_val(&$head) + add_size!($($tail)+));
+    (&$head:ident) => (std::mem::size_of_val(&$head));
+    (&$head:ident, $($tail:tt)+) => (std::mem::size_of_val(&$head) + add_size!($($tail)+));
+    ($head:ident) => (std::mem::size_of_val(&$head));
+    ($head:ident, $($tail:tt)+) => (std::mem::size_of_val(&$head) + add_size!($($tail)+));
     () => (0);
 }
 
@@ -87,8 +77,8 @@ impl Sandcrust {
         sandbox::setup();
     }
 
-    pub fn join_child(&mut self, child: pid_t) {
-        match waitpid(child, None) {
+    pub fn join_child(&mut self, child: sandcrust_nix::libc::pid_t) {
+        match sandcrust_nix::sys::wait::waitpid(child, None) {
             Ok(_) => {}
             Err(e) => println!("sandcrust waitpid() failed with error {}", e),
         }
@@ -100,22 +90,22 @@ impl Sandcrust {
 
     pub unsafe fn get_var_in_shm<T>(&mut self, var: T) {
         let size = add_size!(var);
-        // FIXME: transmute really necessary?
-        let typed_ref: &mut T = transmute(&mut *self.memptr);
+        // FIXME: std::mem::transmute really necessary?
+        let typed_ref: &mut T = std::mem::transmute(&mut *self.memptr);
         *typed_ref = var;
         self.memptr = self.memptr.offset(size as isize);
     }
 
     pub unsafe fn move_memptr<T>(&mut self, var: &T) {
         // FIXME add_size wouldn't catch a double deref, so for now this
-        let size = size_of_val(&*var);
+        let size = std::mem::size_of_val(&*var);
         self.memptr = self.memptr.offset(size as isize);
     }
 
     pub unsafe fn restore_var_from_shm<T>(&mut self, var: &mut T) {
         // FIXME add_size wouldn't catch a double deref, so for now this
-        let size = size_of_val(&*var);
-        *var = transmute_copy(&*self.memptr);
+        let size = std::mem::size_of_val(&*var);
+        *var = std::mem::transmute_copy(&*self.memptr);
         self.memptr = self.memptr.offset(size as isize);
     }
 }
@@ -180,16 +170,16 @@ macro_rules! sandbox_me {
         size += add_size!($($x)*);
 
         let mut sandcrust = Sandcrust::new(size).finalize();
-        match fork() {
-            Ok(ForkResult::Parent { child, .. }) => {
+        match sandcrust_nix::unistd::fork() {
+            Ok(sandcrust_nix::unistd::ForkResult::Parent { child, .. }) => {
                 sandcrust.join_child(child);
                 restore_vars!(sandcrust, $($x)*);
             },
-            Ok(ForkResult::Child) => {
+            Ok(sandcrust_nix::unistd::ForkResult::Child) => {
                 sandcrust.setup_child();
                 $f($($x)*);
                 store_vars!(sandcrust, $($x)*);
-                exit(0);
+                std::process::exit(0);
             }
             Err(e) => println!("sandcrust: fork() failed with error {}", e),
         }
