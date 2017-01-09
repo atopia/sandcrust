@@ -17,7 +17,7 @@ mod val_restore_ffi {
         let greeting = CString::new("Hello libc").unwrap();
         unsafe {
             let gp = greeting.as_ptr();
-            puts(gp);
+            sandbox_me!(puts(gp));
         }
     }
 }
