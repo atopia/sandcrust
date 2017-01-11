@@ -53,7 +53,7 @@ impl Sandcrust {
         ::std::fs::remove_file(&self.fifo_path).unwrap();
     }
 
-    pub unsafe fn put_var_in_fifo<T: Encodable>(&self, var: T) {
+    pub fn put_var_in_fifo<T: Encodable>(&self, var: T) {
         // extra scope to close the file early
         {
             let mut fifo = ::std::fs::OpenOptions::new()
@@ -64,7 +64,7 @@ impl Sandcrust {
         }
     }
 
-    pub unsafe fn restore_var_from_fifo<T: Decodable>(&self, var: &mut T) {
+    pub fn restore_var_from_fifo<T: Decodable>(&self, var: &mut T) {
         let mut fifo = ::std::fs::File::open(&self.fifo_path).unwrap();
         *var = decode_from(&mut fifo, SizeLimit::Infinite).unwrap();
     }
@@ -74,9 +74,9 @@ impl Sandcrust {
 // FIXME: somehow refactor
 #[macro_export]
 macro_rules! store_vars {
-    ($sandcrust:ident, &mut $head:ident) => {unsafe {$sandcrust.put_var_in_fifo($head);};};
+    ($sandcrust:ident, &mut $head:ident) => { $sandcrust.put_var_in_fifo($head); };
     ($sandcrust:ident, &mut $head:ident, $($tail:tt)*) => {
-        unsafe {$sandcrust.put_var_in_fifo($head);};
+        $sandcrust.put_var_in_fifo($head);
         store_vars!($sandcrust, $($tail)*);
     };
     ($sandcrust:ident, &$head:ident) => { };
@@ -95,10 +95,10 @@ macro_rules! store_vars {
 macro_rules! restore_vars {
     // only restore mut types
     ($sandcrust:ident, &mut $head:ident) => {
-        unsafe {$sandcrust.restore_var_from_fifo(&mut $head);};
+        $sandcrust.restore_var_from_fifo(&mut $head);
     };
     ($sandcrust:ident, &mut $head:ident, $($tail:tt)*) => {
-        unsafe {$sandcrust.restore_var_from_fifo(&mut $head);};
+        $sandcrust.restore_var_from_fifo(&mut $head);
         restore_vars!($sandcrust, $($tail)*);
     };
     ($sandcrust:ident, &$head:ident) => { };
