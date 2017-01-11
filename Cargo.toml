@@ -12,7 +12,9 @@ name = "sandstorm"
 path = "src/sandstorm.rs"
 
 [dependencies]
-nix =  { git = "https://github.com/nix-rust/nix" }
+nix = "*"
 libc = "*"
 sandheap = { path = "../sandheap" }
-memmap= "*"
+bincode = "*"
+rustc-serialize = "*"
+errno = "*"
