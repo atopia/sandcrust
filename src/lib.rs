@@ -2,43 +2,34 @@ pub extern crate nix;
 
 extern crate bincode;
 extern crate rustc_serialize;
-extern crate libc;
-extern crate errno;
 
 extern crate sandheap;
 
+// this is needed because e.g. fork is exposed in the macro, while the functions from other crates are not
 pub use nix as sandcrust_nix;
 
 // FIXME make absolute
 use bincode::SizeLimit;
 use bincode::rustc_serialize::{encode_into, decode_from};
 use rustc_serialize::{Encodable, Decodable};
+use std::os::unix::io::FromRawFd;
 
 use sandheap as sandbox;
 
 // needed as a wrapper for all the imported uses
 #[doc(hidden)]
 pub struct Sandcrust {
-    fifo_path: String
+    file_in: ::std::fs::File,
+    file_out: ::std::fs::File,
 }
 
 impl Sandcrust {
         pub fn new() -> Sandcrust {
-        let basepath = "/tmp/sandcrust_pipe_".to_string();
-        let pid_string = sandcrust_nix::unistd::gettid().to_string();
-        let path = basepath + &pid_string;
-	    let cpathstr = ::std::ffi::CString::new(path.clone()).unwrap();
-        unsafe {
-	        let cpath = cpathstr.as_ptr();
-            let ret = ::libc::mkfifo(cpath, 0o666);
-            if ret != 0 {
-                let e = ::errno::errno();
-                panic!("FIFO creation failed with error {}", e);
+            let (fd_out, fd_in) = sandcrust_nix::unistd::pipe().unwrap();
+            Sandcrust {
+                file_in: unsafe { ::std::fs::File::from_raw_fd(fd_in) },
+                file_out: unsafe { ::std::fs::File::from_raw_fd(fd_out) },
             }
-        }
-        Sandcrust {
-            fifo_path: path,
-        }
     }
 
     pub fn setup_child(&self) {
@@ -50,23 +41,14 @@ impl Sandcrust {
             Ok(_) => {}
             Err(e) => println!("sandcrust waitpid() failed with error {}", e),
         }
-        ::std::fs::remove_file(&self.fifo_path).unwrap();
     }
 
-    pub fn put_var_in_fifo<T: Encodable>(&self, var: T) {
-        // extra scope to close the file early
-        {
-            let mut fifo = ::std::fs::OpenOptions::new()
-                .write(true)
-                .open(&self.fifo_path)
-                .unwrap();
-            encode_into(&var, &mut fifo, SizeLimit::Infinite).unwrap();
-        }
+    pub fn put_var_in_fifo<T: Encodable>(&mut self, var: T) {
+        encode_into(&var, &mut self.file_in, SizeLimit::Infinite).unwrap();
     }
 
-    pub fn restore_var_from_fifo<T: Decodable>(&self, var: &mut T) {
-        let mut fifo = ::std::fs::File::open(&self.fifo_path).unwrap();
-        *var = decode_from(&mut fifo, SizeLimit::Infinite).unwrap();
+    pub fn restore_var_from_fifo<T: Decodable>(&mut self, var: &mut T) {
+        *var = decode_from(&mut self.file_out, SizeLimit::Infinite).unwrap();
     }
 }
 

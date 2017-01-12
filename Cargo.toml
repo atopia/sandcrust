@@ -17,4 +17,3 @@ libc = "*"
 sandheap = { path = "../sandheap" }
 bincode = "*"
 rustc-serialize = "*"
-errno = "*"
