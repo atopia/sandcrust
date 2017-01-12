@@ -1,5 +1,6 @@
 extern crate sandcrust;
 extern crate libc;
+extern crate nix;
 
 use sandcrust::*;
 use std::ffi::CString;
@@ -11,6 +12,7 @@ extern {
 }
 
 fn snprintf_wrapper(vec: &mut Vec<u8>, size: size_t, format: *const c_char, name: *const c_char, age: c_uint) {
+    println!("wrapped: PID: {}", nix::unistd::getpid());
 	unsafe {
 		let buf = vec.as_mut_ptr() as *mut i8;
 		let len = snprintf(buf, size, format, name, age);
@@ -27,6 +29,7 @@ fn main() {
 	let fmt = formatstr.as_ptr();
 	let name = namestr.as_ptr();
 	let age: c_uint = 31;
+    println!("orig: PID: {}", nix::unistd::getpid());
     sandbox_me!(snprintf_wrapper(&mut vec, size, fmt, name, age));
 	let stringy = String::from_utf8(vec).unwrap();
 	println!("string is {}", stringy);
