@@ -27,7 +27,7 @@ fn main() {
 	let fmt = formatstr.as_ptr();
 	let name = namestr.as_ptr();
 	let age: c_uint = 31;
-    snprintf_wrapper(&mut vec, size, fmt, name, age);
+    sandbox_me!(snprintf_wrapper(&mut vec, size, fmt, name, age));
 	let stringy = String::from_utf8(vec).unwrap();
 	println!("string is {}", stringy);
 }
