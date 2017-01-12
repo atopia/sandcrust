@@ -8,10 +8,6 @@ extern crate sandheap;
 // this is needed because e.g. fork is exposed in the macro, while the functions from other crates are not
 pub use nix as sandcrust_nix;
 
-// FIXME make absolute
-use bincode::SizeLimit;
-use bincode::rustc_serialize::{encode_into, decode_from};
-use rustc_serialize::{Encodable, Decodable};
 use std::os::unix::io::FromRawFd;
 
 use sandheap as sandbox;
@@ -43,12 +39,12 @@ impl Sandcrust {
         }
     }
 
-    pub fn put_var_in_fifo<T: Encodable>(&mut self, var: T) {
-        encode_into(&var, &mut self.file_in, SizeLimit::Infinite).unwrap();
+    pub fn put_var_in_fifo<T: ::rustc_serialize::Encodable>(&mut self, var: T) {
+       ::bincode::rustc_serialize::encode_into(&var, &mut self.file_in, ::bincode::SizeLimit::Infinite).unwrap();
     }
 
-    pub fn restore_var_from_fifo<T: Decodable>(&mut self, var: &mut T) {
-        *var = decode_from(&mut self.file_out, SizeLimit::Infinite).unwrap();
+    pub fn restore_var_from_fifo<T: ::rustc_serialize::Decodable>(&mut self, var: &mut T) {
+        *var = ::bincode::rustc_serialize::decode_from(&mut self.file_out, ::bincode::SizeLimit::Infinite).unwrap();
     }
 }
 
