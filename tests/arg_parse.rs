@@ -104,6 +104,6 @@ mod arg_parse {
     fn by_mut_reference_recursive_test() {
         let mut a = 11;
         let mut b = 12;
-        sandbox_me!(by_mut_reference_recursive(&mut a, &mut b))
+        sandbox_me!(by_mut_reference_recursive(&mut a, &mut b));
     }
 }
