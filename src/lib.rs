@@ -92,13 +92,9 @@ macro_rules! restore_vars {
 
 
 #[macro_export]
-macro_rules! sandbox_me {
-    // FIXME
-    // handle no arg and/or ret val cases here
-    // and more: use $crate
-
-    // potentially args, no retval
-     ($f:ident($($x:tt)*)) => {{
+// FIXME: use $crate
+macro_rules! sandbox_internal {
+     ($has_retval:expr, $f:ident($($x:tt)*)) => {{
         let mut sandcrust = Sandcrust::new();
         let child: sandcrust_nix::libc::pid_t = match sandcrust_nix::unistd::fork() {
             Ok(sandcrust_nix::unistd::ForkResult::Parent { child, .. }) => {
@@ -122,5 +118,23 @@ macro_rules! sandbox_me {
         };
         sandcrust.join_child(child);
         retval
+     }};
+}
+
+
+// retval, potentially args
+#[macro_export]
+macro_rules! sandbox_me {
+     ($f:ident($($x:tt)*)) => {{
+         sandbox_internal!(true, $f($($x)*))
+     }};
+}
+
+
+// no retval
+#[macro_export]
+macro_rules! sandbox_no_ret {
+     ($f:ident($($x:tt)*)) => {{
+         sandbox_internal!(false, $f($($x)*));
      }};
 }
