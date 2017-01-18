@@ -40,7 +40,7 @@ fn empty() {
 }
 
 fn main() {
-    sandbox_me!(empty());
+    //sandbox_me!(empty());
     println!(">>> actually continue after empty");
     let val1 = sandbox_me!(base_ret());
     let mut bla = 22;
@@ -48,6 +48,7 @@ fn main() {
     assert!(bla == 7);
     assert!(23 == val1);
     assert!(23 == val2);
+    /*
 	let size: size_t = 256;
 	let formatstr = CString::new("I am %s, of %d years\n").unwrap();
 	let mut vec = Vec::with_capacity(size);
@@ -61,4 +62,5 @@ fn main() {
     let status = sandbox_me!(snprintf_wrapper(&mut vec, size, fmt, name, age, &mut len));
 	let stringy = String::from_utf8(vec).unwrap();
 	println!("string is {} with new len {} and status {}", stringy, len, status);
+    */
 }

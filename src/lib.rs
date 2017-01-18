@@ -43,11 +43,7 @@ impl Sandcrust {
        ::bincode::rustc_serialize::encode_into(&var, &mut self.file_in, ::bincode::SizeLimit::Infinite).unwrap();
     }
 
-    pub fn restore_var_from_fifo<T: ::rustc_serialize::Decodable>(&mut self, var: &mut T) {
-        *var = ::bincode::rustc_serialize::decode_from(&mut self.file_out, ::bincode::SizeLimit::Infinite).unwrap();
-    }
-
-    pub fn decode_retval<T: ::rustc_serialize::Decodable>(&mut self) -> Option<T> {
+    pub fn restore_var_from_fifo<T: ::rustc_serialize::Decodable>(&mut self) -> T {
         ::bincode::rustc_serialize::decode_from(&mut self.file_out, ::bincode::SizeLimit::Infinite).unwrap()
     }
 }
@@ -77,10 +73,10 @@ macro_rules! store_vars {
 macro_rules! restore_vars {
     // only restore mut types
     ($sandcrust:ident, &mut $head:ident) => {
-        $sandcrust.restore_var_from_fifo(&mut $head);
+        $head = $sandcrust.restore_var_from_fifo();
     };
     ($sandcrust:ident, &mut $head:ident, $($tail:tt)*) => {
-        $sandcrust.restore_var_from_fifo(&mut $head);
+        $head = $sandcrust.restore_var_from_fifo();
         restore_vars!($sandcrust, $($tail)*);
     };
     ($sandcrust:ident, &$head:ident) => { };
@@ -109,17 +105,12 @@ macro_rules! sandbox_me {
                 sandcrust.setup_child();
                let retval = $f($($x)*);
                 store_vars!(sandcrust, $($x)*);
-                // test for an empty ( () ) return value and construct enum accordingly
-                let retval_option = if ::std::mem::size_of_val(&retval) > 0 { Some(retval) } else { None };
-                sandcrust.put_var_in_fifo(&retval_option);
+                sandcrust.put_var_in_fifo(&retval);
                 ::std::process::exit(0);
             }
             Err(e) => panic!("sandcrust: fork() failed with error {}", e),
         };
-        let retval = match sandcrust.decode_retval() {
-            Some(value) => value,
-            None => 0,
-        };
+        let retval = sandcrust.restore_var_from_fifo();
         sandcrust.join_child(child);
         retval
      }};
