@@ -12,13 +12,6 @@ use std::os::unix::io::FromRawFd;
 
 use sandheap as sandbox;
 
-#[derive(RustcEncodable, RustcDecodable, PartialEq)]
-pub enum SandcrustReturn<T> {
-    Real(T),
-    Fake(i32),
-}
-
-
 // needed as a wrapper for all the imported uses
 #[doc(hidden)]
 pub struct Sandcrust {
@@ -54,7 +47,7 @@ impl Sandcrust {
         *var = ::bincode::rustc_serialize::decode_from(&mut self.file_out, ::bincode::SizeLimit::Infinite).unwrap();
     }
 
-    pub fn decode_retval<T: ::rustc_serialize::Decodable>(&mut self) -> SandcrustReturn<T> {
+    pub fn decode_retval<T: ::rustc_serialize::Decodable>(&mut self) -> Option<T> {
         ::bincode::rustc_serialize::decode_from(&mut self.file_out, ::bincode::SizeLimit::Infinite).unwrap()
     }
 }
@@ -117,15 +110,15 @@ macro_rules! sandbox_me {
                let retval = $f($($x)*);
                 store_vars!(sandcrust, $($x)*);
                 // test for an empty ( () ) return value and construct enum accordingly
-                let retval_enum = if ::std::mem::size_of_val(&retval) > 0 { SandcrustReturn::Real(retval) } else { SandcrustReturn::Fake(0) };
-                sandcrust.put_var_in_fifo(&retval_enum);
+                let retval_option = if ::std::mem::size_of_val(&retval) > 0 { Some(retval) } else { None };
+                sandcrust.put_var_in_fifo(&retval_option);
                 ::std::process::exit(0);
             }
             Err(e) => panic!("sandcrust: fork() failed with error {}", e),
         };
         let retval = match sandcrust.decode_retval() {
-            SandcrustReturn::Real(value) => value,
-            SandcrustReturn::Fake(int) => int,
+            Some(value) => value,
+            None => 0,
         };
         sandcrust.join_child(child);
         retval
