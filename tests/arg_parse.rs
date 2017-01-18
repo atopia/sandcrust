@@ -14,7 +14,7 @@ mod arg_parse {
 
 
     fn by_value_simple(a: i32) {
-        assert!(a == 1);
+        assert_eq!(a, 1);
     }
 
     #[test]
@@ -24,8 +24,8 @@ mod arg_parse {
     }
 
     fn by_value_recursive(a: i32, b: i32) {
-        assert!(a == 2);
-        assert!(b == 3);
+        assert_eq!(a, 2);
+        assert_eq!(b, 3);
     }
 
     #[test]
@@ -37,7 +37,7 @@ mod arg_parse {
 
     fn by_mut_value_simple(mut a: i32) {
         a += 1;
-        assert!(a == 5);
+        assert_eq!(a, 5);
     }
 
     #[test]
@@ -50,7 +50,7 @@ mod arg_parse {
         if b > a {
             b = a;
         }
-        assert!(b == 5);
+        assert_eq!(b, 5);
     }
 
     #[test]
@@ -61,7 +61,7 @@ mod arg_parse {
     }
 
     fn by_reference_simple(a: &i32) {
-        assert!(*a == 7);
+        assert_eq!(*a, 7);
     }
 
     #[test]
@@ -71,8 +71,8 @@ mod arg_parse {
     }
 
     fn by_reference_recursive(a: &i32, b: &i32) {
-        assert!(*a == 8);
-        assert!(*b == 9);
+        assert_eq!(*a, 8);
+        assert_eq!(*b, 9);
     }
 
     #[test]
@@ -96,8 +96,8 @@ mod arg_parse {
         let swap = *a;
         *a = *b;
         *b = swap;
-        assert!(*a == 12);
-        assert!(*b == 11);
+        assert_eq!(*a, 12);
+        assert_eq!(*b, 11);
     }
 
     #[test]
