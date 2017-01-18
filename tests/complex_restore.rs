@@ -29,7 +29,7 @@ mod complex_restore {
         let new_world = World {
             entities: vec![Entity {x: 1.0, y: 4.0}, Entity {x: 10.0, y: 20.5}]
         };
-        sandbox_me!(complex_struct_vec(&mut world));
+        sandbox_no_ret!(complex_struct_vec(&mut world));
         assert!(world == new_world)
     }
 

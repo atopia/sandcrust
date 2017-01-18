@@ -13,7 +13,7 @@ mod val_restore {
     #[test]
     fn base_test() {
         let mut a: u8 = 23;
-        sandbox_me!(base_inc(&mut a));
+        sandbox_no_ret!(base_inc(&mut a));
         assert!(a == 24);
     }
 
@@ -25,7 +25,7 @@ mod val_restore {
     fn second_to_first_test() {
         let mut a = 23;
         let b = 42;
-        sandbox_me!(second_to_first(&mut a, b));
+        sandbox_no_ret!(second_to_first(&mut a, b));
         assert!(a == 42);
     }
 
@@ -37,7 +37,7 @@ mod val_restore {
     fn first_to_second_test() {
         let a = 23;
         let mut b = 42;
-        sandbox_me!(first_to_second(a, &mut b));
+        sandbox_no_ret!(first_to_second(a, &mut b));
         assert!(b == 23);
     }
 
@@ -50,7 +50,7 @@ mod val_restore {
         let a = 1;
         let mut b = 2;
         let c = 3;
-        sandbox_me!(mult_args_ref_direct_1(&a, &mut b, c));
+        sandbox_no_ret!(mult_args_ref_direct_1(&a, &mut b, c));
         assert!(b == 4);
     }
 
@@ -63,7 +63,7 @@ mod val_restore {
         let a = 1;
         let b = 2;
         let mut c = 7;
-        sandbox_me!(mult_args_ref_direct_2(a, &b, &mut c));
+        sandbox_no_ret!(mult_args_ref_direct_2(a, &b, &mut c));
         assert!(c == 3);
     }
 
@@ -76,7 +76,7 @@ mod val_restore {
         let mut a = 1;
         let b = 2;
         let c = 3;
-        sandbox_me!(mult_args_ref_direct_3(&mut a, &b, c));
+        sandbox_no_ret!(mult_args_ref_direct_3(&mut a, &b, c));
         assert!(a == 5);
     }
 
@@ -91,7 +91,7 @@ mod val_restore {
         let a = 1;
         let mut b = 2;
         let mut c = 3;
-        sandbox_me!(mult_mut_args_1(a, &mut b, &mut c));
+        sandbox_no_ret!(mult_mut_args_1(a, &mut b, &mut c));
         assert!(b == 4);
         assert!(c == 1);
     }
@@ -107,7 +107,7 @@ mod val_restore {
         let mut a = 1;
         let b = 2;
         let mut c = 3;
-        sandbox_me!(mult_mut_args_2(&mut a, b, &mut c));
+        sandbox_no_ret!(mult_mut_args_2(&mut a, b, &mut c));
         assert!(a == 5);
         assert!(c == 2);
     }

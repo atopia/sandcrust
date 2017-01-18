@@ -88,9 +88,35 @@ macro_rules! restore_vars {
 
 
 #[macro_export]
+macro_rules! run_func {
+     (has_ret, $sandcrust:ident, $f:ident($($x:tt)*)) => {
+       let retval = $f($($x)*);
+        store_vars!($sandcrust, $($x)*);
+        $sandcrust.put_var_in_fifo(&retval);
+     };
+     (no_ret, $sandcrust:ident, $f:ident($($x:tt)*)) => {
+       $f($($x)*);
+        store_vars!($sandcrust, $($x)*);
+    };
+}
+
+#[macro_export]
+macro_rules! collect_ret {
+     (has_ret, $sandcrust:ident, $child:ident) => {{
+        let retval = $sandcrust.restore_var_from_fifo();
+        $sandcrust.join_child($child);
+        retval
+     }};
+     (no_ret, $sandcrust:ident, $child:ident) => {
+        $sandcrust.join_child($child);
+     };
+}
+
+
+#[macro_export]
 // FIXME: use $crate
 macro_rules! sandbox_internal {
-     ($has_retval:expr, $f:ident($($x:tt)*)) => {{
+     ($has_retval:ident, $f:ident($($x:tt)*)) => {{
         let mut sandcrust = Sandcrust::new();
         let child: sandcrust_nix::libc::pid_t = match sandcrust_nix::unistd::fork() {
             Ok(sandcrust_nix::unistd::ForkResult::Parent { child, .. }) => {
@@ -99,25 +125,21 @@ macro_rules! sandbox_internal {
             },
             Ok(sandcrust_nix::unistd::ForkResult::Child) => {
                 sandcrust.setup_child();
-               let retval = $f($($x)*);
-                store_vars!(sandcrust, $($x)*);
-                sandcrust.put_var_in_fifo(&retval);
+                run_func!($has_retval, sandcrust, $f($($x)*));
                 ::std::process::exit(0);
             }
             Err(e) => panic!("sandcrust: fork() failed with error {}", e),
         };
-        let retval = sandcrust.restore_var_from_fifo();
-        sandcrust.join_child(child);
-        retval
+        collect_ret!($has_retval, sandcrust, child)
      }};
 }
 
 
 // retval, potentially args
 #[macro_export]
-macro_rules! sandbox_me {
+macro_rules! sandbox {
      ($f:ident($($x:tt)*)) => {{
-         sandbox_internal!(true, $f($($x)*))
+         sandbox_internal!(has_ret, $f($($x)*))
      }};
 }
 
@@ -126,6 +148,6 @@ macro_rules! sandbox_me {
 #[macro_export]
 macro_rules! sandbox_no_ret {
      ($f:ident($($x:tt)*)) => {{
-         sandbox_internal!(false, $f($($x)*));
+         sandbox_internal!(no_ret, $f($($x)*));
      }};
 }

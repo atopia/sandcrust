@@ -12,7 +12,7 @@ mod retval_restore {
 
     #[test]
     fn no_ret_test() {
-        sandbox_me!(no_ret());
+        sandbox_no_ret!(no_ret());
     }
 
     fn base_ret() -> i32 {
@@ -22,7 +22,7 @@ mod retval_restore {
 
     #[test]
     fn base_ret_test() {
-        let local_ret = sandbox_me!(base_ret());
+        let local_ret: i32 = sandbox!(base_ret());
         assert!(local_ret == 23);
     }
 
@@ -35,7 +35,7 @@ mod retval_restore {
     #[test]
     fn second_base_ret_test() {
         let mut bla = 22;
-        let local_ret = sandbox_me!(second_base_ret(&mut bla));
+        let local_ret: i32 = sandbox!(second_base_ret(&mut bla));
         assert!(local_ret == 23);
         assert!(bla == 7);
     }
