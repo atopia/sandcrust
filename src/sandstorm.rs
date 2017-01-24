@@ -35,30 +35,44 @@ fn second_base_ret(bla: &mut i32) -> i32 {
     ret
 }
 
-fn empty() {
-    ;
+macro_rules! handle_args {
+    ($head:ident : $typo:ty) => {
+        let newvar: &$typo = &$head;
+        println!("newvar is : {}", $head);
+    };
+    ($head:ident : $typo:ty, $($tail:tt)+) => {
+        handle_args!($head: $typo);
+        handle_args!($($tail)+);
+    };
+     () => {
+         println!("nünscht wars!");
+     };
+}
+
+
+macro_rules! wrap_def {
+     (fn $f:ident($($x:tt)*) $body:block ) => {
+         fn $f($($x)*) {
+            println!("do something before and then just eat the block");
+            handle_args!($($x)*);
+            $body
+         }
+     };
+}
+
+wrap_def!{
+    fn empty() {
+         println!("so empty!");
+    }
+}
+
+wrap_def!{
+    fn full(bla: i32, blubb: i64) {
+         println!("so full with {} and {}!", bla, blubb);
+    }
 }
 
 fn main() {
-    sandbox_no_ret!(empty());
-    println!(">>> actually continue after empty");
-    let val1 = sandbox!(base_ret());
-    let mut bla = 22;
-    let val2 = sandbox!(second_base_ret(&mut bla));
-    assert!(bla == 7);
-    assert!(23 == val1);
-    assert!(23 == val2);
-	let size: size_t = 256;
-	let formatstr = CString::new("I am %s, of %d years\n").unwrap();
-	let mut vec = Vec::with_capacity(size);
-
-	let namestr = CString::new("Ben").unwrap();
-	let fmt = formatstr.as_ptr();
-	let name = namestr.as_ptr();
-	let age: c_uint = 31;
-    println!("orig: PID: {}", nix::unistd::getpid());
-    let mut len: c_int = 0;
-    let status: c_int = sandbox!(snprintf_wrapper(&mut vec, size, fmt, name, age, &mut len));
-	let stringy = String::from_utf8(vec).unwrap();
-	println!("string is {} with new len {} and status {}", stringy, len, status);
+    empty();
+    full(32, 1);
 }

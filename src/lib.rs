@@ -186,12 +186,68 @@ macro_rules! sandbox_internal {
 }
 
 
-// retval, potentially args
 #[macro_export]
 macro_rules! sandbox {
+	// retval, potentially args
      ($f:ident($($x:tt)*)) => {{
          sandbox_internal!(has_ret, $f($($x)*))
      }};
+
+	 // (global-)wrap a function definition, transforming it
+     (fn $f:ident($($x:tt)*) $body:block ) => {
+	 	 // wrapper function generated to draw the right amount of args from pipe
+		 // before calling the whole function client-side
+	 	 fn $f_wrapped() {
+			//  restore_vars_from parent->child pipe, using type information (this should work
+			//  okay via shadowing lets instead of overwrites)
+			 // get_args_with_type!($($x)*);
+			 // let a: type = decode...
+			 // magic macro, right?
+			 // that means an inner macro will be needed to generate the function body, but a
+			 // no arg function to jump to it from a function pointer
+			 //
+			 // $f(arg1, arg2...);
+		 	 // stuff mut args back in pipe, like the old macro...
+			 // depending on retval or not, a inner macro may put that back too, like in
+			 // sandbox_inner
+		 }
+
+		 // possibly called by PARENT (and child):
+         fn $f($($x)*) {
+		 	 // eigentlich braucht der Scheiß eh ein globales lock, schon wegen der pipes!
+			 // des natürlich traurig... ma gucken ob sich das auf mehre invocations scalieren
+			 // lässt
+			 // da:
+
+			 /*
+			extern crate sync;
+			use sync::mutex::{StaticMutex, MUTEX_INIT};
+
+			static LIBRARY_LOCK: StaticMutex = MUTEX_INIT;
+
+			fn access_global_resource() {
+    			let _ = LIBRARY_LOCK.lock();
+    			unsafe { call_thread_unsafe_c_api(); }
+			}
+			*/
+
+			// if child is 0 but pipe is set, just run the function, it was called child-side
+			 if SANDCRUST_GLOBAL.cmd_send != 0 && SANDCRUST_GLOBAL.child == 0 {
+			 	 $body
+			} else {
+					// parent mode, potentially freshly initialized
+					let sandcrust = Sandcrust::new_global();
+					// copy vars (that are typed via the function signature) to child via pipe, somehow
+					// first copying a function pointer to $f_wrapped or some shit (that could actually
+					// quite be enough)
+					//
+					// ... wait for shit to come back:
+            		//handle_changed_vals!($($x)*);
+					// then in return pipe via other macro collect all args that may have changed, this
+					// time we even know the return value!
+			}
+		}
+	};
 }
 
 
