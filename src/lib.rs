@@ -12,6 +12,10 @@ use std::os::unix::io::FromRawFd;
 
 use sandheap as sandbox;
 
+static mut SANDCRUST_CMD_SEND: std::os::unix::io::RawFd = 0;
+static mut SANDCRUST_RESULT_RECEIVE: std::os::unix::io::RawFd = 0;
+static mut SANDCRUST_CHILD_PID: sandcrust_nix::libc::pid_t = 0;
+
 // needed as a wrapper for all the imported uses
 #[doc(hidden)]
 pub struct Sandcrust {
@@ -26,10 +30,49 @@ impl Sandcrust {
                 file_in: unsafe { ::std::fs::File::from_raw_fd(fd_in) },
                 file_out: unsafe { ::std::fs::File::from_raw_fd(fd_out) },
             }
+	   }
+
+    pub fn setup_sandbox(&self) {
+        sandbox::setup();
     }
 
-    pub fn setup_child(&self) {
-        sandbox::setup();
+	pub fn run_child_loop(&self) {
+		println!("out of the loop!");
+	}
+
+    pub fn new_global() -> Sandcrust {
+		// use SANDCRUST_PIPE_SEND as marker for initialization
+        if unsafe {SANDCRUST_CMD_SEND == 0} {
+			// FIXME somehow defend against race conditons
+            let (child_cmd_receive, parent_cmd_send ) = sandcrust_nix::unistd::pipe().unwrap();
+            unsafe { SANDCRUST_CMD_SEND = parent_cmd_send};
+            let (parent_result_receive, child_result_send ) = sandcrust_nix::unistd::pipe().unwrap();
+            unsafe { SANDCRUST_RESULT_RECEIVE = parent_result_receive};
+
+			match sandcrust_nix::unistd::fork() {
+				// as parent, simply set SANDCRUST_CHILD_PID
+				Ok(sandcrust_nix::unistd::ForkResult::Parent { child, .. }) => {
+					unsafe { SANDCRUST_CHILD_PID = child};
+				},
+				// as a child, run the IPC loop
+				Ok(sandcrust_nix::unistd::ForkResult::Child) => {
+					// we overload the meaning of file_in / file_out for parent and child here, which is
+					// not nice but might enable reuse of some methods
+					let sandcrust = Sandcrust {
+						file_in: unsafe { ::std::fs::File::from_raw_fd(child_cmd_receive) },
+						file_out: unsafe { ::std::fs::File::from_raw_fd(child_result_send) },
+					};
+					sandcrust.setup_sandbox();
+					sandcrust.run_child_loop();
+					::std::process::exit(0);
+				}
+				Err(e) => panic!("sandcrust: fork() failed with error {}", e),
+			};
+        }
+        Sandcrust {
+            file_in: unsafe { ::std::fs::File::from_raw_fd(SANDCRUST_RESULT_RECEIVE) },
+            file_out: unsafe { ::std::fs::File::from_raw_fd(SANDCRUST_CMD_SEND) },
+        }
     }
 
     pub fn join_child(&self, child: sandcrust_nix::libc::pid_t) {
@@ -45,6 +88,10 @@ impl Sandcrust {
 
     pub fn restore_var_from_fifo<T: ::rustc_serialize::Decodable>(&mut self) -> T {
         ::bincode::rustc_serialize::decode_from(&mut self.file_out, ::bincode::SizeLimit::Infinite).unwrap()
+    }
+
+    pub fn terminate_child() {
+        unimplemented!();
     }
 }
 
@@ -124,7 +171,7 @@ macro_rules! sandbox_internal {
                 child
             },
             Ok(sandcrust_nix::unistd::ForkResult::Child) => {
-                sandcrust.setup_child();
+                sandcrust.setup_sandbox();
                 run_func!($has_retval, sandcrust, $f($($x)*));
                 ::std::process::exit(0);
             }
