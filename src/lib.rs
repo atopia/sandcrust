@@ -12,9 +12,13 @@ use std::os::unix::io::FromRawFd;
 
 use sandheap as sandbox;
 
-static mut SANDCRUST_CMD_SEND: std::os::unix::io::RawFd = 0;
-static mut SANDCRUST_RESULT_RECEIVE: std::os::unix::io::RawFd = 0;
-static mut SANDCRUST_CHILD_PID: sandcrust_nix::libc::pid_t = 0;
+struct SandcrustGlobal {
+	cmd_send: std::os::unix::io::RawFd,
+	result_receive: std::os::unix::io::RawFd,
+	child: sandcrust_nix::libc::pid_t,
+}
+
+static mut SANDCRUST_GLOBAL: SandcrustGlobal = SandcrustGlobal{cmd_send: 0, result_receive: 0, child: 0};
 
 // needed as a wrapper for all the imported uses
 #[doc(hidden)]
@@ -36,23 +40,23 @@ impl Sandcrust {
         sandbox::setup();
     }
 
-	pub fn run_child_loop(&self) {
+	fn run_child_loop(&self) {
 		println!("out of the loop!");
 	}
 
     pub fn new_global() -> Sandcrust {
 		// use SANDCRUST_PIPE_SEND as marker for initialization
-        if unsafe {SANDCRUST_CMD_SEND == 0} {
+        if unsafe {SANDCRUST_GLOBAL.cmd_send == 0} {
 			// FIXME somehow defend against race conditons
             let (child_cmd_receive, parent_cmd_send ) = sandcrust_nix::unistd::pipe().unwrap();
-            unsafe { SANDCRUST_CMD_SEND = parent_cmd_send};
+            unsafe { SANDCRUST_GLOBAL.cmd_send = parent_cmd_send};
             let (parent_result_receive, child_result_send ) = sandcrust_nix::unistd::pipe().unwrap();
-            unsafe { SANDCRUST_RESULT_RECEIVE = parent_result_receive};
+            unsafe { SANDCRUST_GLOBAL.result_receive = parent_result_receive};
 
 			match sandcrust_nix::unistd::fork() {
 				// as parent, simply set SANDCRUST_CHILD_PID
 				Ok(sandcrust_nix::unistd::ForkResult::Parent { child, .. }) => {
-					unsafe { SANDCRUST_CHILD_PID = child};
+					unsafe { SANDCRUST_GLOBAL.child = child};
 				},
 				// as a child, run the IPC loop
 				Ok(sandcrust_nix::unistd::ForkResult::Child) => {
@@ -70,8 +74,8 @@ impl Sandcrust {
 			};
         }
         Sandcrust {
-            file_in: unsafe { ::std::fs::File::from_raw_fd(SANDCRUST_RESULT_RECEIVE) },
-            file_out: unsafe { ::std::fs::File::from_raw_fd(SANDCRUST_CMD_SEND) },
+            file_in: unsafe { ::std::fs::File::from_raw_fd(SANDCRUST_GLOBAL.result_receive) },
+            file_out: unsafe { ::std::fs::File::from_raw_fd(SANDCRUST_GLOBAL.cmd_send) },
         }
     }
 
