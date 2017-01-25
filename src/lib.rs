@@ -197,7 +197,14 @@ macro_rules! sandbox {
      (fn $f:ident($($x:tt)*) $body:block ) => {
 	 	 // wrapper function generated to draw the right amount of args from pipe
 		 // before calling the whole function client-side
-	 	 fn $f_wrapped() {
+		 // will likely need to get a sandcrust object anyway, so the question is: is there a way
+		 // to make it an impl of sandcrust?
+
+        // https://github.com/rust-lang/rust/issues/12249
+        //  a simple $f_wrapped won't do in any way, therefore:
+	 	 fn wrap_$f() {
+			 println!("implement wrapper");
+
 			//  restore_vars_from parent->child pipe, using type information (this should work
 			//  okay via shadowing lets instead of overwrites)
 			 // get_args_with_type!($($x)*);
@@ -213,12 +220,13 @@ macro_rules! sandbox {
 		 }
 
 		 // possibly called by PARENT (and child):
+		 // FIXME: am besten gleich: je nach direkt-c oder nicht die in Ruhe lassen und nen anderen
+		 // wrapper nehmen
          fn $f($($x)*) {
 		 	 // eigentlich braucht der Scheiß eh ein globales lock, schon wegen der pipes!
-			 // des natürlich traurig... ma gucken ob sich das auf mehre invocations scalieren
+			 // des natürlich traurig... ma gucken ob sich das auf mehrere invocations scalieren
 			 // lässt
 			 // da:
-
 			 /*
 			extern crate sync;
 			use sync::mutex::{StaticMutex, MUTEX_INIT};
@@ -231,12 +239,19 @@ macro_rules! sandbox {
 			}
 			*/
 
+
 			// if child is 0 but pipe is set, just run the function, it was called child-side
 			 if SANDCRUST_GLOBAL.cmd_send != 0 && SANDCRUST_GLOBAL.child == 0 {
+				println!("moving into childmode");
 			 	 $body
 			} else {
 					// parent mode, potentially freshly initialized
+					println!("parent mode");
 					let sandcrust = Sandcrust::new_global();
+					// function pointer to newly created method
+					let f = wrap_$f;
+					f();
+
 					// copy vars (that are typed via the function signature) to child via pipe, somehow
 					// first copying a function pointer to $f_wrapped or some shit (that could actually
 					// quite be enough)

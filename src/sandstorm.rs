@@ -49,11 +49,23 @@ macro_rules! handle_args {
      };
 }
 
+struct SandcrustWrappers {
+    bullshit: i32,
+}
+
+static  SW: SandcrustWrappers = SandcrustWrappers{bullshit: 0};
 
 macro_rules! wrap_def {
+
      (fn $f:ident($($x:tt)*) $body:block ) => {
+        impl SandcrustWrappers {
+            fn $f(&self) {
+                println!("invent a method");
+        }
+        }
          fn $f($($x)*) {
             println!("do something before and then just eat the block");
+            SW.$f();
             handle_args!($($x)*);
             $body
          }
