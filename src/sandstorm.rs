@@ -1,3 +1,4 @@
+#[macro_use]
 extern crate sandcrust;
 extern crate libc;
 extern crate nix;
