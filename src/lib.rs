@@ -1,16 +1,17 @@
-pub extern crate nix;
+extern crate nix;
 
 extern crate bincode;
 extern crate rustc_serialize;
 
 extern crate sandheap;
 
-// this is needed because e.g. fork is exposed in the macro, while the functions from other crates are not
-pub use nix as sandcrust_nix;
-
 use std::os::unix::io::FromRawFd;
 
 use sandheap as sandbox;
+
+pub type SandcrustPid = nix::libc::pid_t;
+// pub use because of https://github.com/rust-lang/rust/issues/31355
+pub use nix::unistd::ForkResult as SandcrustForkResult;
 
 // needed as a wrapper for all the imported uses
 #[doc(hidden)]
@@ -21,7 +22,7 @@ pub struct Sandcrust {
 
 impl Sandcrust {
         pub fn new() -> Sandcrust {
-            let (fd_out, fd_in) = sandcrust_nix::unistd::pipe().unwrap();
+            let (fd_out, fd_in) = nix::unistd::pipe().unwrap();
             Sandcrust {
                 file_in: unsafe { ::std::fs::File::from_raw_fd(fd_in) },
                 file_out: unsafe { ::std::fs::File::from_raw_fd(fd_out) },
@@ -32,8 +33,8 @@ impl Sandcrust {
         sandbox::setup();
     }
 
-    pub fn join_child(&self, child: sandcrust_nix::libc::pid_t) {
-        match sandcrust_nix::sys::wait::waitpid(child, None) {
+    pub fn join_child(&self, child: SandcrustPid) {
+        match nix::sys::wait::waitpid(child, None) {
             Ok(_) => {}
             Err(e) => println!("sandcrust waitpid() failed with error {}", e),
         }
@@ -45,6 +46,11 @@ impl Sandcrust {
 
     pub fn restore_var_from_fifo<T: ::rustc_serialize::Decodable>(&mut self) -> T {
         ::bincode::rustc_serialize::decode_from(&mut self.file_out, ::bincode::SizeLimit::Infinite).unwrap()
+    }
+
+    // wrap fork to avoid exporting nix
+    pub fn fork(&self) -> std::result::Result<SandcrustForkResult, nix::Error> {
+        nix::unistd::fork()
     }
 }
 
@@ -118,12 +124,12 @@ macro_rules! collect_ret {
 macro_rules! sandbox_internal {
      ($has_retval:ident, $f:ident($($x:tt)*)) => {{
         let mut sandcrust = Sandcrust::new();
-        let child: sandcrust_nix::libc::pid_t = match sandcrust_nix::unistd::fork() {
-            Ok(sandcrust_nix::unistd::ForkResult::Parent { child, .. }) => {
+        let child: SandcrustPid = match sandcrust.fork() {
+            Ok(SandcrustForkResult::Parent { child, .. }) => {
                 restore_vars!(sandcrust, $($x)*);
                 child
             },
-            Ok(sandcrust_nix::unistd::ForkResult::Child) => {
+            Ok(SandcrustForkResult::Child) => {
                 sandcrust.setup_child();
                 run_func!($has_retval, sandcrust, $f($($x)*));
                 ::std::process::exit(0);
