@@ -120,16 +120,15 @@ macro_rules! collect_ret {
 
 
 #[macro_export]
-// FIXME: use $crate
 macro_rules! sandbox_internal {
      ($has_retval:ident, $f:ident($($x:tt)*)) => {{
-        let mut sandcrust = Sandcrust::new();
-        let child: SandcrustPid = match sandcrust.fork() {
-            Ok(SandcrustForkResult::Parent { child, .. }) => {
+        let mut sandcrust = $crate::Sandcrust::new();
+        let child: $crate::SandcrustPid = match sandcrust.fork() {
+            Ok($crate::SandcrustForkResult::Parent { child, .. }) => {
                 restore_vars!(sandcrust, $($x)*);
                 child
             },
-            Ok(SandcrustForkResult::Child) => {
+            Ok($crate::SandcrustForkResult::Child) => {
                 sandcrust.setup_child();
                 run_func!($has_retval, sandcrust, $f($($x)*));
                 ::std::process::exit(0);
