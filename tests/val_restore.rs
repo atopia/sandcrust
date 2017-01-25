@@ -1,5 +1,5 @@
-extern crate sandcrust;
 #[macro_use]
+extern crate sandcrust;
 use sandcrust::*;
 
 #[cfg(test)]
