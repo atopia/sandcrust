@@ -1,10 +1,11 @@
+#[macro_use]
 extern crate sandcrust;
 extern crate libc;
 extern crate nix;
 
 use sandcrust::*;
 use std::ffi::CString;
-use libc::*;
+use libc::{c_int, c_uint, size_t, c_char};
 
 #[link="c"]
 extern {

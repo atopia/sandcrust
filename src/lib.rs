@@ -1,21 +1,22 @@
-pub extern crate nix;
+extern crate nix;
 
 extern crate bincode;
 extern crate rustc_serialize;
 
 extern crate sandheap;
 
-// this is needed because e.g. fork is exposed in the macro, while the functions from other crates are not
-pub use nix as sandcrust_nix;
-
 use std::os::unix::io::FromRawFd;
 
 use sandheap as sandbox;
 
+pub type SandcrustPid = nix::libc::pid_t;
+// pub use because of https://github.com/rust-lang/rust/issues/31355
+pub use nix::unistd::ForkResult as SandcrustForkResult;
+
 struct SandcrustGlobal {
 	cmd_send: std::os::unix::io::RawFd,
 	result_receive: std::os::unix::io::RawFd,
-	child: sandcrust_nix::libc::pid_t,
+	child: SandcrustPid,
 }
 
 static mut SANDCRUST_GLOBAL: SandcrustGlobal = SandcrustGlobal{cmd_send: 0, result_receive: 0, child: 0};
@@ -29,7 +30,7 @@ pub struct Sandcrust {
 
 impl Sandcrust {
         pub fn new() -> Sandcrust {
-            let (fd_out, fd_in) = sandcrust_nix::unistd::pipe().unwrap();
+            let (fd_out, fd_in) = nix::unistd::pipe().unwrap();
             Sandcrust {
                 file_in: unsafe { ::std::fs::File::from_raw_fd(fd_in) },
                 file_out: unsafe { ::std::fs::File::from_raw_fd(fd_out) },
@@ -48,18 +49,18 @@ impl Sandcrust {
 		// use SANDCRUST_PIPE_SEND as marker for initialization
         if unsafe {SANDCRUST_GLOBAL.cmd_send == 0} {
 			// FIXME somehow defend against race conditons
-            let (child_cmd_receive, parent_cmd_send ) = sandcrust_nix::unistd::pipe().unwrap();
+            let (child_cmd_receive, parent_cmd_send ) = ::nix::unistd::pipe().unwrap();
             unsafe { SANDCRUST_GLOBAL.cmd_send = parent_cmd_send};
-            let (parent_result_receive, child_result_send ) = sandcrust_nix::unistd::pipe().unwrap();
+            let (parent_result_receive, child_result_send ) = ::nix::unistd::pipe().unwrap();
             unsafe { SANDCRUST_GLOBAL.result_receive = parent_result_receive};
 
-			match sandcrust_nix::unistd::fork() {
+			match ::nix::unistd::fork() {
 				// as parent, simply set SANDCRUST_CHILD_PID
-				Ok(sandcrust_nix::unistd::ForkResult::Parent { child, .. }) => {
+				Ok(::nix::unistd::ForkResult::Parent { child, .. }) => {
 					unsafe { SANDCRUST_GLOBAL.child = child};
 				},
 				// as a child, run the IPC loop
-				Ok(sandcrust_nix::unistd::ForkResult::Child) => {
+				Ok(::nix::unistd::ForkResult::Child) => {
 					// we overload the meaning of file_in / file_out for parent and child here, which is
 					// not nice but might enable reuse of some methods
 					let sandcrust = Sandcrust {
@@ -79,8 +80,8 @@ impl Sandcrust {
         }
     }
 
-    pub fn join_child(&self, child: sandcrust_nix::libc::pid_t) {
-        match sandcrust_nix::sys::wait::waitpid(child, None) {
+    pub fn join_child(&self, child: SandcrustPid) {
+        match nix::sys::wait::waitpid(child, None) {
             Ok(_) => {}
             Err(e) => println!("sandcrust waitpid() failed with error {}", e),
         }
@@ -96,6 +97,11 @@ impl Sandcrust {
 
     pub fn terminate_child() {
         unimplemented!();
+    }
+
+    // wrap fork to avoid exporting nix
+    pub fn fork(&self) -> std::result::Result<SandcrustForkResult, nix::Error> {
+        nix::unistd::fork()
     }
 }
 
@@ -165,16 +171,15 @@ macro_rules! collect_ret {
 
 
 #[macro_export]
-// FIXME: use $crate
 macro_rules! sandbox_internal {
      ($has_retval:ident, $f:ident($($x:tt)*)) => {{
-        let mut sandcrust = Sandcrust::new();
-        let child: sandcrust_nix::libc::pid_t = match sandcrust_nix::unistd::fork() {
-            Ok(sandcrust_nix::unistd::ForkResult::Parent { child, .. }) => {
+        let mut sandcrust = $crate::Sandcrust::new();
+        let child: $crate::SandcrustPid = match sandcrust.fork() {
+            Ok($crate::SandcrustForkResult::Parent { child, .. }) => {
                 restore_vars!(sandcrust, $($x)*);
                 child
             },
-            Ok(sandcrust_nix::unistd::ForkResult::Child) => {
+            Ok($crate::SandcrustForkResult::Child) => {
                 sandcrust.setup_sandbox();
                 run_func!($has_retval, sandcrust, $f($($x)*));
                 ::std::process::exit(0);
