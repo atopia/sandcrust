@@ -4,88 +4,43 @@ extern crate libc;
 extern crate nix;
 
 use sandcrust::*;
-use std::ffi::CString;
-use libc::{c_int, c_uint, size_t, c_char};
 
-#[link="c"]
-extern {
-	fn snprintf(str: *mut c_char, size: size_t, format: *const c_char, ...) -> c_int;
-}
-
-fn snprintf_wrapper(vec: &mut Vec<u8>, size: size_t, format: *const c_char, name: *const c_char, age: c_uint, len: &mut c_int) -> i32 {
-    println!("wrapped: PID: {}", nix::unistd::getpid());
-    let status = 12;
-	unsafe {
-		let buf = vec.as_mut_ptr() as *mut i8;
-		let lenny = snprintf(buf, size, format, name, age);
-		vec.set_len(lenny as usize);
-        *len = lenny;
-	}
-    status
-}
-
-
-fn base_ret() -> i32 {
-    let ret = 23;
-    ret
-}
-
-fn second_base_ret(bla: &mut i32) -> i32 {
-    let ret = 23;
-    *bla = 7;
-    ret
-}
-
-macro_rules! handle_args {
-    ($head:ident : $typo:ty) => {
-        let newvar: &$typo = &$head;
-        println!("newvar is : {}", $head);
-    };
-    ($head:ident : $typo:ty, $($tail:tt)+) => {
-        handle_args!($head: $typo);
-        handle_args!($($tail)+);
-    };
-     () => {
-         println!("nünscht wars!");
-     };
-}
-
-struct SandcrustWrappers {
-    bullshit: i32,
-}
-
-static  SW: SandcrustWrappers = SandcrustWrappers{bullshit: 0};
-
-macro_rules! wrap_def {
-
-     (fn $f:ident($($x:tt)*) $body:block ) => {
-        impl SandcrustWrappers {
-            fn $f(&self) {
-                println!("invent a method");
-        }
-        }
-         fn $f($($x)*) {
-            println!("do something before and then just eat the block");
-            SW.$f();
-            handle_args!($($x)*);
-            $body
-         }
-     };
-}
-
-wrap_def!{
+sandbox!{
     fn empty() {
          println!("so empty!");
     }
 }
+sandbox!{
+    fn Add() {
+         println!("so additional!");
+    }
+}
 
-wrap_def!{
+sandbox!{
+    fn half(bla: i32) {
+         println!("so full with {}!", bla);
+    }
+}
+
+sandbox!{
     fn full(bla: i32, blubb: i64) {
          println!("so full with {} and {}!", bla, blubb);
     }
 }
 
+sandbox!{
+    fn base_inc(a: &mut i32) {
+        *a += 1;
+    }
+}
+
 fn main() {
-    empty();
-    full(32, 1);
+   empty();
+   Add();
+   full(32, 1);
+   let mut a: i32 = 23;
+   base_inc(&mut a);
+   assert_eq!(a, 24);
+   half(32);
+   sandbox_terminate();
 }

@@ -1,10 +1,8 @@
 #[macro_use]
 extern crate sandcrust;
-use sandcrust::*;
 
 #[cfg(test)]
 mod val_restore {
-    use super::*;
 
     fn base_inc(a: &mut u8) {
         *a += 1;

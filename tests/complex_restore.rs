@@ -1,11 +1,9 @@
 extern crate rustc_serialize;
 #[macro_use]
 extern crate sandcrust;
-use sandcrust::*;
 
 #[cfg(test)]
 mod complex_restore {
-    use super::*;
 
     #[derive(RustcEncodable, RustcDecodable, PartialEq)]
     struct Entity {

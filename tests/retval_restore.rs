@@ -1,10 +1,8 @@
 #[macro_use]
 extern crate sandcrust;
-use sandcrust::*;
 
 #[cfg(test)]
 mod retval_restore {
-    use super::*;
 
     fn no_ret() {
         ;
