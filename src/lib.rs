@@ -20,6 +20,7 @@ pub struct SandcrustGlobal {
 }
 
 pub static mut SANDCRUST_GLOBAL: SandcrustGlobal = SandcrustGlobal{cmd_send: 0, result_receive: 0, child: 0};
+static SANDCRUST_START: ::std::sync::Once = ::std::sync::ONCE_INIT;
 
 // needed as a wrapper for all the imported uses
 #[doc(hidden)]
@@ -58,30 +59,32 @@ impl Sandcrust {
     pub fn new_global() -> Sandcrust {
 		// use SANDCRUST_GLOBAL.cmd_send as marker for initialization
         if unsafe {SANDCRUST_GLOBAL.cmd_send == 0} {
-            let (child_cmd_receive, parent_cmd_send ) = ::nix::unistd::pipe().unwrap();
-            unsafe { SANDCRUST_GLOBAL.cmd_send = parent_cmd_send};
-            let (parent_result_receive, child_result_send ) = ::nix::unistd::pipe().unwrap();
-            unsafe { SANDCRUST_GLOBAL.result_receive = parent_result_receive};
+            SANDCRUST_START.call_once(|| {
+                let (child_cmd_receive, parent_cmd_send ) = ::nix::unistd::pipe().unwrap();
+                unsafe { SANDCRUST_GLOBAL.cmd_send = parent_cmd_send};
+                let (parent_result_receive, child_result_send ) = ::nix::unistd::pipe().unwrap();
+                unsafe { SANDCRUST_GLOBAL.result_receive = parent_result_receive};
 
-			match ::nix::unistd::fork() {
-				// as parent, simply set SANDCRUST_GLOBAL.child to child PID
-				Ok(::nix::unistd::ForkResult::Parent { child, .. }) => {
-					unsafe { SANDCRUST_GLOBAL.child = child};
-				},
-				// as child, run the IPC loop
-				Ok(::nix::unistd::ForkResult::Child) => {
-					// we overload the meaning of file_in / file_out for parent and child here, which is
-					// not nice but might enable reuse of some methods
-					let mut sandcrust = Sandcrust {
-						file_in: unsafe { ::std::fs::File::from_raw_fd(child_result_send) },
-						file_out: unsafe { ::std::fs::File::from_raw_fd(child_cmd_receive) },
-					};
-					sandcrust.setup_sandbox();
-					sandcrust.run_child_loop();
-					::std::process::exit(0);
-				}
-				Err(e) => panic!("sandcrust: fork() failed with error {}", e),
-			};
+			    match ::nix::unistd::fork() {
+				    // as parent, simply set SANDCRUST_GLOBAL.child to child PID
+				    Ok(::nix::unistd::ForkResult::Parent { child, .. }) => {
+					    unsafe { SANDCRUST_GLOBAL.child = child};
+				    },
+				    // as child, run the IPC loop
+				    Ok(::nix::unistd::ForkResult::Child) => {
+					    // we overload the meaning of file_in / file_out for parent and child here, which is
+					    // not nice but might enable reuse of some methods
+					    let mut sandcrust = Sandcrust {
+						    file_in: unsafe { ::std::fs::File::from_raw_fd(child_result_send) },
+						    file_out: unsafe { ::std::fs::File::from_raw_fd(child_cmd_receive) },
+					    };
+					    sandcrust.setup_sandbox();
+					    sandcrust.run_child_loop();
+					    ::std::process::exit(0);
+				    }
+				    Err(e) => panic!("sandcrust: fork() failed with error {}", e),
+			    };
+            });
         }
         // dublicate the global raw file descriptors because from_raw_fd will consume them
         // and they will be closed, once the File object goes out of scope
