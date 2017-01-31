@@ -42,13 +42,17 @@ impl Sandcrust {
     }
 
 	fn run_child_loop(&mut self) {
-        //loop {
+        loop {
             let func_int: u64 = self.restore_var_from_fifo();
-            unsafe {
-               let func: fn(&mut Sandcrust) = std::mem::transmute_copy(&func_int);
-               func(self);
+            if func_int == 0 {
+					::std::process::exit(0);
+            } else {
+                unsafe {
+                   let func: fn(&mut Sandcrust) = std::mem::transmute_copy(&func_int);
+                   func(self);
+                }
             }
-        //}
+        }
 	}
 
     pub fn new_global() -> Sandcrust {
@@ -406,7 +410,8 @@ macro_rules! sandbox {
 }
 
 pub fn sandbox_terminate () {
-    let sandcrust = Sandcrust::new_global();
+    let mut sandcrust = Sandcrust::new_global();
+    sandcrust.put_var_in_fifo(0u64);
     ::nix::unistd::close(unsafe{SANDCRUST_GLOBAL.cmd_send}).unwrap();
     ::nix::unistd::close(unsafe{SANDCRUST_GLOBAL.result_receive}).unwrap();
     sandcrust.join_child(unsafe {SANDCRUST_GLOBAL.child});
