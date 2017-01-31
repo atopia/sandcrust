@@ -183,8 +183,8 @@ macro_rules! strip_types {
 
     ((mut $head:ident : $typo:ty, $($tail:tt)+) -> ($f:ident($($body:expr),+))) => (strip_types!(($($tail)+) -> ($f($($body),+, mut $head))));
     ((mut $head:ident : $typo:ty, $($tail:tt)+) -> ($f:ident())) => (strip_types!(($($tail)+) -> ($f(mut $head))));
-    ((mut $head:ident : $typo:ty) -> ($f:ident($($body:expr),+))) => ($f($($body)+, mut $head));
-    ((mut $head:ident : $typo:ty) -> ($f:ident())) => ($f(mut $head));
+    ((mut $head:ident : $typo:ty) -> ($f:ident($($body:expr),+))) => ($f($($body)+, $head));
+    ((mut $head:ident : $typo:ty) -> ($f:ident())) => ($f($head));
 
     (($head:ident : $typo:ty, $($tail:tt)+) -> ($f:ident($($body:expr),+))) => (strip_types!(($($tail)+) -> ($f($($body),+, $head))));
     (($head:ident : $typo:ty, $($tail:tt)+) -> ($f:ident())) => (strip_types!(($($tail)+) -> ($f($head))));
@@ -240,11 +240,11 @@ macro_rules! restore_vars_fn {
     ($sandcrust:ident, $head:ident : $typo:ty, $($tail:tt)+) => {
         restore_vars_fn!($sandcrust, $($tail)+);
     };
-    ($sandcrust:ident, $head:ident : $typo:ty ) => { };
     ($sandcrust:ident, mut $head:ident : $typo:ty ) => { };
     ($sandcrust:ident, mut $head:ident : $typo:ty, $($tail:tt)+) => {
         restore_vars_fn!($sandcrust, $($tail)+);
     };
+    ($sandcrust:ident, $head:ident : $typo:ty ) => { };
     ($sandcrust:ident, ) => {};
 }
 
@@ -259,10 +259,10 @@ macro_rules! pull_args {
         pull_args!($sandcrust, $($tail)+);
     };
     ($sandcrust:ident, $head:ident : &$typo:ty) => {
-        let $head: &$typo = $sandcrust.restore_var_from_fifo();
+        let $head: $typo = $sandcrust.restore_var_from_fifo();
     };
     ($sandcrust:ident, $head:ident : &$typo:ty, $($tail:tt)+) => {
-        let $head: &$typo = $sandcrust.restore_var_from_fifo();
+        let $head: $typo = $sandcrust.restore_var_from_fifo();
         pull_args!($sandcrust, $($tail)+);
     };
     ($sandcrust:ident, $head:ident : $typo:ty, $($tail:tt)+) => {
@@ -365,7 +365,7 @@ macro_rules! sandbox {
 
          impl $f for $crate::SandcrustWrapper {
             fn $f(sandcrust: &mut $crate::Sandcrust) {
-                println!("look I got magic going!: {}", nix::unistd::getpid());
+                //println!("look I got magic going!: {}", ::nix::unistd::getpid());
                 pull_args!(sandcrust, $($x)*);
                 let retval: $rettype = strip_types!{$f($($x)*)};
                 store_vars_fn!(sandcrust, $($x)*);
@@ -379,7 +379,7 @@ macro_rules! sandbox {
 				 $body
 			} else {
 					// parent mode, potentially freshly initialized
-					println!("parent mode: {}", nix::unistd::getpid());
+					//println!("parent mode: {}", ::nix::unistd::getpid());
                     let mut sandcrust = $crate::Sandcrust::new_global();
 
 					// function pointer to newly created method...
@@ -420,7 +420,7 @@ macro_rules! sandbox {
          // downside of (more) possible function name collisions.
          impl $f for $crate::SandcrustWrapper {
             fn $f(sandcrust: &mut $crate::Sandcrust) {
-                println!("look I got magic going!: {}", nix::unistd::getpid());
+                //println!("look I got magic going!: {}", ::nix::unistd::getpid());
                 pull_args!(sandcrust, $($x)*);
                 strip_types!{$f($($x)*)};
                 store_vars_fn!(sandcrust, $($x)*);
@@ -436,7 +436,7 @@ macro_rules! sandbox {
 			 	 $body
 			} else {
 					// parent mode, potentially freshly initialized
-					println!("parent mode: {}", nix::unistd::getpid());
+					//println!("parent mode: {}", ::nix::unistd::getpid());
                     let mut sandcrust = $crate::Sandcrust::new_global();
 
 					// function pointer to newly created method...
