@@ -79,9 +79,13 @@ impl Sandcrust {
 				Err(e) => panic!("sandcrust: fork() failed with error {}", e),
 			};
         }
+        // dublicate the global raw file descriptors because from_raw_fd will consume them
+        // and they will be closed, once the File object goes out of scope
+        let new_cmd_send = nix::unistd::dup(unsafe{SANDCRUST_GLOBAL.cmd_send}).unwrap();
+        let new_result_receive = nix::unistd::dup(unsafe{SANDCRUST_GLOBAL.result_receive}).unwrap();
         Sandcrust {
-            file_in: unsafe { ::std::fs::File::from_raw_fd(SANDCRUST_GLOBAL.cmd_send) },
-            file_out: unsafe { ::std::fs::File::from_raw_fd(SANDCRUST_GLOBAL.result_receive) },
+            file_in: unsafe { ::std::fs::File::from_raw_fd(new_cmd_send) },
+            file_out: unsafe { ::std::fs::File::from_raw_fd(new_result_receive) },
         }
     }
 
@@ -384,7 +388,6 @@ macro_rules! sandbox {
 			} else {
 					// parent mode, potentially freshly initialized
 					println!("parent mode: {}", nix::unistd::getpid());
-                    // FIXME: File will consume FDs!!!!
                     let mut sandcrust = $crate::Sandcrust::new_global();
 
 					// function pointer to newly created method...
@@ -404,6 +407,8 @@ macro_rules! sandbox {
 
 pub fn sandbox_terminate () {
     let sandcrust = Sandcrust::new_global();
+    ::nix::unistd::close(unsafe{SANDCRUST_GLOBAL.cmd_send}).unwrap();
+    ::nix::unistd::close(unsafe{SANDCRUST_GLOBAL.result_receive}).unwrap();
     sandcrust.join_child(unsafe {SANDCRUST_GLOBAL.child});
 }
 
