@@ -383,11 +383,11 @@ macro_rules! sandbox {
                     let mut sandcrust = $crate::Sandcrust::new_global();
 
 					// function pointer to newly created method...
-                    let func: fn(&mut Sandcrust) = SandcrustWrapper::$f;
+                    let func: fn(&mut $crate::Sandcrust) = $crate::SandcrustWrapper::$f;
                     // ... sent as u64 because this will be serializable
                     // FIXME use if cfg!(target_pointer_width = "32"), but seems broken
                     unsafe {
-                       let func_int: u64 = std::mem::transmute(func);
+                       let func_int: u64 = ::std::mem::transmute(func);
                        sandcrust.put_var_in_fifo(&func_int);
                     }
                     push_args!(sandcrust, $($x)*);
@@ -440,11 +440,11 @@ macro_rules! sandbox {
                     let mut sandcrust = $crate::Sandcrust::new_global();
 
 					// function pointer to newly created method...
-                    let func: fn(&mut Sandcrust) = SandcrustWrapper::$f;
+                    let func: fn(&mut $crate::Sandcrust) = $crate::SandcrustWrapper::$f;
                     // ... sent as u64 because this will be serializable
                     // FIXME use if cfg!(target_pointer_width = "32"), but seems broken
                     unsafe {
-                       let func_int: u64 = std::mem::transmute(func);
+                       let func_int: u64 = ::std::mem::transmute(func);
                        sandcrust.put_var_in_fifo(&func_int);
                     }
                     push_args!(sandcrust, $($x)*);
