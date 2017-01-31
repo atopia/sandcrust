@@ -359,10 +359,10 @@ macro_rules! sandbox {
      (fn $f:ident($($x:tt)*) $body:block ) => {
          // Fake trait to implement a function to use as a wrapper function.
          // FIXME: ideally this should be done by defining a struct (like SandcrustWrapper) in the macro,
-         // but only once (#ifndef bla struct OnlyOnce #define bla #endif - Style) and just adding
+         // but only once (#ifndef bla struct OnlyOnce; #define bla #endif - Style) and just adding
          // a method named $f to it - however I haven't been able to figure out how to check for an
-         // existing definition.
-         // Using a trait instead, because traits can be added to a data type defined (one time) elsewhere.
+         // existing definition at compile time.
+         // Using a trait instead, because traits can be added to a data type defined (once) elsewhere.
          // However, the downside is polluting the trait namespace, potentially colliding with
          // existing traits when wrapping functions such as Clone, Drop, etc.
 		//  a simple $f_wrapped won't do in any way: https://github.com/rust-lang/rust/issues/12249
@@ -373,8 +373,8 @@ macro_rules! sandbox {
 
 	 	 // wrapper function generated to draw the right amount of args from pipe
 		 // before calling the whole function client-side
-		 // FIXME will likely need to get a sandcrust object anyway, so the question is: is there a way
-		 // to make it an impl of sandcrust?
+         // It would be awesome to bind this to the existing struct Sandcrust, however at the
+         // downside of (more) possible function name collisions.
          impl $f for $crate::SandcrustWrapper {
             fn $f(sandcrust: &mut $crate::Sandcrust) {
                 println!("look I got magic going!: {}", nix::unistd::getpid());
@@ -388,7 +388,6 @@ macro_rules! sandbox {
 		 // FIXME: am besten gleich: je nach direkt-c oder nicht die in Ruhe lassen und nen anderen
 		 // wrapper nehmen
          fn $f($($x)*) {
-
 			// if child is 0 but pipe is set, just run the function, it was called child-side
 			 if unsafe { $crate::SANDCRUST_GLOBAL.cmd_send != 0 && $crate::SANDCRUST_GLOBAL.child == 0 } {
 			 	 $body
@@ -400,7 +399,7 @@ macro_rules! sandbox {
 					// function pointer to newly created method...
                     let func: fn(&mut Sandcrust) = SandcrustWrapper::$f;
                     // ... sent as u64 because this will be serializable
-                    // FIXME https://github.com/alexcrichton/cfg-if -> je nach pointer width
+                    // FIXME use if cfg!(target_pointer_width = "32"), but seems broken
                     unsafe {
                        let func_int: u64 = std::mem::transmute(func);
                        sandcrust.put_var_in_fifo(&func_int);
