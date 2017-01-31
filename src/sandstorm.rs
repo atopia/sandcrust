@@ -35,6 +35,13 @@ sandbox!{
     }
 }
 
+sandbox!{
+    fn base_ret() -> i32 {
+        let ret = 23;
+        ret
+    }
+}
+
 fn main() {
    empty();
    Add();
@@ -43,5 +50,7 @@ fn main() {
    base_inc(&mut a);
    assert_eq!(a, 24);
    half(32);
+   let local_ret = base_ret();
+   assert_eq!(local_ret, 23);
    sandbox_terminate();
 }
