@@ -354,61 +354,30 @@ macro_rules! sandbox_internal {
 pub struct SandcrustWrapper;
 
 #[macro_export]
-macro_rules! sandbox {
-	// retval, potentially args
-     ($f:ident($($x:tt)*)) => {{
-         sandbox_internal!(has_ret, $f($($x)*))
+macro_rules! collect_ret_global {
+     (has_ret, $rettype:ty, $sandcrust:ident) => {{
+        let retval: $rettype = $sandcrust.restore_var_from_fifo();
+        retval
      }};
+     (no_ret, $rettype:ty, $sandcrust:ident) => { println!("do shit");};
+}
 
-     // same as below, but with return value
-     // FIXME DRY
-     (fn $f:ident($($x:tt)*) -> $rettype:ty $body:block ) => {
-         #[allow(non_camel_case_types)]
-         trait $f {
-             fn $f(sandcrust: &mut $crate::Sandcrust);
-         }
+#[macro_export]
+macro_rules! run_func_fn {
+    (has_ret, $sandcrust:ident, $f:ident($($x:tt)*)) => {
+        let retval = strip_types!{$f($($x)*)};
+        store_vars_fn!($sandcrust, $($x)*);
+        $sandcrust.put_var_in_fifo(&retval);
+    };
+    (no_ret, $sandcrust:ident, $f:ident($($x:tt)*)) => {
+        strip_types!{$f($($x)*)};
+        store_vars_fn!($sandcrust, $($x)*);
+    };
+}
 
-         impl $f for $crate::SandcrustWrapper {
-            fn $f(sandcrust: &mut $crate::Sandcrust) {
-                //println!("look I got magic going!: {}", ::nix::unistd::getpid());
-                pull_args!(sandcrust, $($x)*);
-                let retval: $rettype = strip_types!{$f($($x)*)};
-                store_vars_fn!(sandcrust, $($x)*);
-                sandcrust.put_var_in_fifo(&retval);
-            }
-         }
-
-         fn $f($($x)*) -> $rettype {
-			// as a child, just run function
-			 if unsafe{INITIALIZED_CHILD} {
-				 $body
-			} else {
-                    let mut sandcrust = SANDCRUST.lock().unwrap();
-                    // potenially completely unintialized, if we're the child on first access, run
-                    // child loop
-                    sandcrust.initialize_child();
-
-					// parent mode, potentially freshly initialized
-					//println!("parent mode: {}", ::nix::unistd::getpid());
-
-					// function pointer to newly created method...
-                    let func: fn(&mut $crate::Sandcrust) = $crate::SandcrustWrapper::$f;
-                    // ... sent as u64 because this will be serializable
-                    // FIXME use if cfg!(target_pointer_width = "32"), but seems broken
-                    unsafe {
-                       let func_int: u64 = ::std::mem::transmute(func);
-                       sandcrust.put_var_in_fifo(&func_int);
-                    }
-                    push_args!(sandcrust, $($x)*);
-                    restore_vars_fn!(sandcrust, $($x)*);
-                    let retval: $rettype = sandcrust.restore_var_from_fifo();
-                    retval
-            }
-		}
-	};
-
-	 // (global-)wrap a function definition, transforming it
-     (fn $f:ident($($x:tt)*) $body:block ) => {
+#[macro_export]
+macro_rules! sandbox_global_create_wrapper {
+    ($has_retval:ident, fn $f:ident($($x:tt)*) -> $rettype:ty $body:block ) => {
          // Fake trait to implement a function to use as a wrapper function.
          // FIXME: ideally this should be done by defining a struct (like SandcrustWrapper) in the macro,
          // but only once (#ifndef bla struct OnlyOnce; #define bla #endif - Style) and just adding
@@ -426,22 +395,25 @@ macro_rules! sandbox {
 	 	 // wrapper function generated to draw the right amount of args from pipe
 		 // before calling the whole function client-side
          // It would be awesome to bind this to the existing struct Sandcrust, however at the
-         // downside of (more) possible function name collisions.
+         // expense of possible function name collisions.
          impl $f for $crate::SandcrustWrapper {
             fn $f(sandcrust: &mut $crate::Sandcrust) {
                 //println!("look I got magic going!: {}", ::nix::unistd::getpid());
                 pull_args!(sandcrust, $($x)*);
-                strip_types!{$f($($x)*)};
-                store_vars_fn!(sandcrust, $($x)*);
+                run_func_fn!($has_retval, sandcrust, $f($($x)*));
             }
          }
+    };
+}
 
-		 // possibly called by PARENT (and child):
-		 // FIXME: am besten gleich: je nach direkt-c oder nicht die in Ruhe lassen und nen anderen
-		 // wrapper nehmen
-         fn $f($($x)*) {
+// possibly called by PARENT (and child):
+// FIXME: am besten gleich: je nach direkt-c oder nicht die in Ruhe lassen und nen anderen
+// wrapper nehmen
+#[macro_export]
+macro_rules! sandbox_global_create_function {
+    ($has_retval:ident, fn $f:ident($($x:tt)*) -> $rettype:ty $body:block ) => {
 			// as an initialized child, just run function
-			 if unsafe{INITIALIZED_CHILD} {
+			if unsafe{INITIALIZED_CHILD} {
 				 $body
 			} else {
                     let mut sandcrust = SANDCRUST.lock().unwrap();
@@ -462,7 +434,34 @@ macro_rules! sandbox {
                     }
                     push_args!(sandcrust, $($x)*);
                     restore_vars_fn!(sandcrust, $($x)*);
-			}
+                    collect_ret_global!($has_retval, $rettype, sandcrust)
+            }
+    };
+}
+
+
+#[macro_export]
+macro_rules! sandbox {
+	// retval, potentially args
+     ($f:ident($($x:tt)*)) => {{
+         sandbox_internal!(has_ret, $f($($x)*))
+     }};
+
+     // same as below, but with return value
+     // FIXME DRY
+     (fn $f:ident($($x:tt)*) -> $rettype:ty $body:block ) => {
+        sandbox_global_create_wrapper!(has_ret, fn $f($($x)*) -> $rettype $body);
+         fn $f($($x)*) -> $rettype {
+            sandbox_global_create_function!(has_ret, fn $f($($x)*) -> $rettype $body)
+		}
+	 };
+
+	 // (global-)wrap a function definition, transforming it
+     (fn $f:ident($($x:tt)*) $body:block ) => {
+        sandbox_global_create_wrapper!(no_ret, fn $f($($x)*) -> i32 $body);
+
+         fn $f($($x)*) {
+            sandbox_global_create_function!(no_ret, fn $f($($x)*) -> i32 $body)
 		}
 	};
 }
