@@ -17,3 +17,4 @@ libc = "*"
 sandheap = { path = "../sandheap" }
 bincode = "*"
 rustc-serialize = "*"
+lazy_static = "*"
