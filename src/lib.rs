@@ -377,7 +377,7 @@ macro_rules! run_func_fn {
 
 #[macro_export]
 macro_rules! sandbox_global_create_wrapper {
-    ($has_retval:ident, fn $f:ident($($x:tt)*) -> $rettype:ty $body:block ) => {
+    ($has_retval:ident, fn $f:ident($($x:tt)*)) => {
          // Fake trait to implement a function to use as a wrapper function.
          // FIXME: ideally this should be done by defining a struct (like SandcrustWrapper) in the macro,
          // but only once (#ifndef bla struct OnlyOnce; #define bla #endif - Style) and just adding
@@ -448,25 +448,25 @@ macro_rules! sandbox {
      }};
 	 // (global-)wrap a function definition, transforming it
      (pub fn $f:ident($($x:tt)*) -> $rettype:ty $body:block ) => {
-        sandbox_global_create_wrapper!(has_ret, fn $f($($x)*) -> $rettype $body);
+        sandbox_global_create_wrapper!(has_ret, fn $f($($x)*));
          pub fn $f($($x)*) -> $rettype {
             sandbox_global_create_function!(has_ret, fn $f($($x)*) -> $rettype $body)
 		}
 	 };
      (pub fn $f:ident($($x:tt)*) $body:block ) => {
-        sandbox_global_create_wrapper!(no_ret, fn $f($($x)*) -> i32 $body);
+        sandbox_global_create_wrapper!(no_ret, fn $f($($x)*));
          pub fn $f($($x)*) {
             sandbox_global_create_function!(no_ret, fn $f($($x)*) -> i32 $body)
 		}
 	};
      (fn $f:ident($($x:tt)*) -> $rettype:ty $body:block ) => {
-        sandbox_global_create_wrapper!(has_ret, fn $f($($x)*) -> $rettype $body);
+        sandbox_global_create_wrapper!(has_ret, fn $f($($x)*));
          fn $f($($x)*) -> $rettype {
             sandbox_global_create_function!(has_ret, fn $f($($x)*) -> $rettype $body)
 		}
 	 };
      (fn $f:ident($($x:tt)*) $body:block ) => {
-        sandbox_global_create_wrapper!(no_ret, fn $f($($x)*) -> i32 $body);
+        sandbox_global_create_wrapper!(no_ret, fn $f($($x)*));
          fn $f($($x)*) {
             sandbox_global_create_function!(no_ret, fn $f($($x)*) -> i32 $body)
 		}
