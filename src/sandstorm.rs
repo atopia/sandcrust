@@ -41,14 +41,14 @@ sandbox!{
 }
 
 fn main() {
-   empty();
    Add();
+   half(32);
    full(32, 1);
    let mut a: i32 = 23;
    base_inc(&mut a);
    assert_eq!(a, 24);
-   half(32);
    let local_ret = base_ret();
    assert_eq!(local_ret, 23);
+   empty();
    sandbox_terminate();
 }

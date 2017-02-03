@@ -147,58 +147,6 @@ macro_rules! store_vars {
     ($sandcrust:ident, ) => {};
 }
 
-// FIXME: somehow refactor
-#[macro_export]
-macro_rules! store_vars_fn {
-    ($sandcrust:ident, $head:ident : &mut $typo:ty) => { $sandcrust.put_var_in_fifo($head); };
-    ($sandcrust:ident, $head:ident : &mut $typo:ty, $($tail:tt)*) => {
-        $sandcrust.put_var_in_fifo($head);
-        store_vars_fn!($sandcrust, $($tail)*);
-    };
-    ($sandcrust:ident, $head:ident : &$typo:ty) => { };
-    ($sandcrust:ident, $head:ident : &$typo:ty, $($tail:tt)+) => {
-        store_vars_fn!($sandcrust, $($tail)*);
-    };
-    ($sandcrust:ident, $head:ident : $typo:ty ) => { };
-    ($sandcrust:ident, $head:ident : $typo:ty, $($tail:tt)+) => {
-        store_vars_fn!($sandcrust, $($tail)*);
-    };
-    ($sandcrust:ident, mut $head:ident : $typo:ty ) => { };
-    ($sandcrust:ident, mut $head:ident : $typo:ty, $($tail:tt)+) => {
-        store_vars_fn!($sandcrust, $($tail)*);
-    };
-    ($sandcrust:ident, ) => {};
-}
-
-// matching hell, but there is nothing else to do because Push Down Accumulation is a necessity
-// https://danielkeep.github.io/tlborm/book/pat-push-down-accumulation.html#incremental-tt-munchers
-// unfortunately, using $head:expr seems to match a single macro defition, but fails to expand in a
-// subsequent macro
-#[macro_export]
-macro_rules! strip_types {
-    (($head:ident : &mut $typo:ty, $($tail:tt)+) -> ($f:ident($($body:expr),+))) => (strip_types!(($($tail)+) -> ($f($($body),+, &mut $head))));
-    (($head:ident : &mut $typo:ty, $($tail:tt)+) -> ($f:ident())) => (strip_types!(($($tail)+) -> ($f(&mut $head))));
-    (($head:ident : &mut $typo:ty) -> ($f:ident($($body:expr),+))) => ($f($($body)+, &mut $head));
-    (($head:ident : &mut $typo:ty) -> ($f:ident())) => ($f(&mut $head));
-
-    (($head:ident : &$typo:ty, $($tail:tt)+) -> ($f:ident($($body:expr),+))) => (strip_types!(($($tail)+) -> ($f($($body),+, &$head))));
-    (($head:ident : &$typo:ty, $($tail:tt)+) -> ($f:ident())) => (strip_types!(($($tail)+) -> ($f(&$head))));
-    (($head:ident : &$typo:ty) -> ($f:ident($($body:expr),+))) => ($f($($body)+, &$head));
-    (($head:ident : &$typo:ty) -> ($f:ident())) => ($f(&$head));
-
-    ((mut $head:ident : $typo:ty, $($tail:tt)+) -> ($f:ident($($body:expr),+))) => (strip_types!(($($tail)+) -> ($f($($body),+, mut $head))));
-    ((mut $head:ident : $typo:ty, $($tail:tt)+) -> ($f:ident())) => (strip_types!(($($tail)+) -> ($f(mut $head))));
-    ((mut $head:ident : $typo:ty) -> ($f:ident($($body:expr),+))) => ($f($($body)+, $head));
-    ((mut $head:ident : $typo:ty) -> ($f:ident())) => ($f($head));
-
-    (($head:ident : $typo:ty, $($tail:tt)+) -> ($f:ident($($body:expr),+))) => (strip_types!(($($tail)+) -> ($f($($body),+, $head))));
-    (($head:ident : $typo:ty, $($tail:tt)+) -> ($f:ident())) => (strip_types!(($($tail)+) -> ($f($head))));
-    (($head:ident : $typo:ty) -> ($f:ident($($body:expr),+))) => ($f($($body)+, $head));
-    (($head:ident : $typo:ty) -> ($f:ident())) => ($f($head));
-
-    ($f:ident($($tail:tt)+)) => (strip_types!(($($tail)+) -> ($f())));
-    ($f:ident()) => ($f());
-}
 
 // FIXME: somehow refactor
 #[macro_export]
@@ -331,6 +279,38 @@ macro_rules! collect_ret {
 }
 
 
+// matching hell, but there is nothing else to do because Push Down Accumulation is a necessity
+// https://danielkeep.github.io/tlborm/book/pat-push-down-accumulation.html#incremental-tt-munchers
+// unfortunately, using $head:expr seems to match a single macro defition, but fails to expand in a
+// subsequent macro
+#[macro_export]
+macro_rules! strip_types {
+    ($called_macro:ident, $has_retval:ident, $sandcrust:ident, ($head:ident : &mut $typo:ty, $($tail:tt)+) -> ($f:ident($($body:tt)+))) => (strip_types!($called_macro, $has_retval, $sandcrust, ($($tail)+) -> ($f($($body)+, &mut $head))));
+    ($called_macro:ident, $has_retval:ident, $sandcrust:ident, ($head:ident : &mut $typo:ty, $($tail:tt)+) -> ($f:ident())) => (strip_types!($called_macro, $has_retval, $sandcrust, ($($tail)+) -> ($f(&mut $head))));
+    ($called_macro:ident, $has_retval:ident, $sandcrust:ident, ($head:ident : &mut $typo:ty) -> ($f:ident($($body:tt)+))) => ($called_macro!($has_retval, $sandcrust, $f($($body)+, &mut $head)));
+    ($called_macro:ident, $has_retval:ident, $sandcrust:ident, ($head:ident : &mut $typo:ty) -> ($f:ident())) => ($called_macro!($has_retval, $sandcrust, $f(&mut $head)));
+
+    ($called_macro:ident, $has_retval:ident, $sandcrust:ident, ($head:ident : &$typo:ty, $($tail:tt)+) -> ($f:ident($($body:tt)+))) => (strip_types!($called_macro, $has_retval, $sandcrust, ($($tail)+) -> ($f($($body)+, &$head))));
+    ($called_macro:ident, $has_retval:ident, $sandcrust:ident, ($head:ident : &$typo:ty, $($tail:tt)+) -> ($f:ident())) => (strip_types!($called_macro, $has_retval, $sandcrust, ($($tail)+) -> ($f(&$head))));
+    ($called_macro:ident, $has_retval:ident, $sandcrust:ident, ($head:ident : &$typo:ty) -> ($f:ident($($body:tt)+))) => ($called_macro!($has_retval, $sandcrust, $f($($body)+, &$head)));
+    ($called_macro:ident, $has_retval:ident, $sandcrust:ident, ($head:ident : &$typo:ty) -> ($f:ident())) => ($called_macro!($has_retval, $sandcrust, $f(&$head)));
+
+    ($called_macro:ident, $has_retval:ident, $sandcrust:ident, (mut $head:ident : $typo:ty, $($tail:tt)+) -> ($f:ident($($body:tt)+))) => (strip_types!($called_macro, $has_retval, $sandcrust, ($($tail)+) -> ($f($($body)+, mut $head))));
+    ($called_macro:ident, $has_retval:ident, $sandcrust:ident, (mut $head:ident : $typo:ty, $($tail:tt)+) -> ($f:ident())) => (strip_types!($called_macro, $has_retval, $sandcrust, ($($tail)+) -> ($f(mut $head))));
+    ($called_macro:ident, $has_retval:ident, $sandcrust:ident, (mut $head:ident : $typo:ty) -> ($f:ident($($body:tt)+))) => ($called_macro!($has_retval, $sandcrust, $f($($body)+, $head)));
+    ($called_macro:ident, $has_retval:ident, $sandcrust:ident, (mut $head:ident : $typo:ty) -> ($f:ident())) => ($called_macro!($has_retval, $sandcrust, $f($head)));
+
+    ($called_macro:ident, $has_retval:ident, $sandcrust:ident, ($head:ident : $typo:ty, $($tail:tt)+) -> ($f:ident($($body:tt)+))) => (strip_types!($called_macro, $has_retval, $sandcrust, ($($tail)+) -> ($f($($body)+, $head))));
+    ($called_macro:ident, $has_retval:ident, $sandcrust:ident, ($head:ident : $typo:ty, $($tail:tt)+) -> ($f:ident())) => (strip_types!($called_macro, $has_retval, $sandcrust, ($($tail)+) -> ($f($head))));
+    ($called_macro:ident, $has_retval:ident, $sandcrust:ident, ($head:ident : $typo:ty) -> ($f:ident($($body:tt)+))) => ($called_macro!($has_retval, $sandcrust, $f($($body)+, $head)));
+    ($called_macro:ident, $has_retval:ident, $sandcrust:ident, ($head:ident : $typo:ty) -> ($f:ident())) => ($called_macro!($has_retval, $sandcrust, $f($head)));
+
+    ($called_macro:ident, $has_retval:ident, $sandcrust:ident, $f:ident($($tail:tt)+)) => (strip_types!($called_macro, $has_retval, $sandcrust, ($($tail)+) -> ($f())));
+    ($called_macro:ident, $has_retval:ident, $sandcrust:ident, $f:ident()) => ($called_macro!($has_retval, $sandcrust, $f()));
+}
+
+
+
 #[macro_export]
 macro_rules! sandbox_internal {
      ($has_retval:ident, $f:ident($($x:tt)*)) => {{
@@ -359,21 +339,9 @@ macro_rules! collect_ret_global {
         let retval: $rettype = $sandcrust.restore_var_from_fifo();
         retval
      }};
-     (no_ret, $rettype:ty, $sandcrust:ident) => { println!("do shit");};
+     (no_ret, $rettype:ty, $sandcrust:ident) => { () };
 }
 
-#[macro_export]
-macro_rules! run_func_fn {
-    (has_ret, $sandcrust:ident, $f:ident($($x:tt)*)) => {
-        let retval = strip_types!{$f($($x)*)};
-        store_vars_fn!($sandcrust, $($x)*);
-        $sandcrust.put_var_in_fifo(&retval);
-    };
-    (no_ret, $sandcrust:ident, $f:ident($($x:tt)*)) => {
-        strip_types!{$f($($x)*)};
-        store_vars_fn!($sandcrust, $($x)*);
-    };
-}
 
 #[macro_export]
 macro_rules! sandbox_global_create_wrapper {
@@ -400,7 +368,7 @@ macro_rules! sandbox_global_create_wrapper {
             fn $f(sandcrust: &mut $crate::Sandcrust) {
                 //println!("look I got magic going!: {}", ::nix::unistd::getpid());
                 pull_args!(sandcrust, $($x)*);
-                run_func_fn!($has_retval, sandcrust, $f($($x)*));
+                strip_types!(run_func, $has_retval, sandcrust, $f($($x)*));
             }
          }
     };
