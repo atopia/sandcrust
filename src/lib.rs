@@ -446,20 +446,27 @@ macro_rules! sandbox {
      ($f:ident($($x:tt)*)) => {{
          sandbox_internal!(has_ret, $f($($x)*))
      }};
-
-     // same as below, but with return value
-     // FIXME DRY
+	 // (global-)wrap a function definition, transforming it
+     (pub fn $f:ident($($x:tt)*) -> $rettype:ty $body:block ) => {
+        sandbox_global_create_wrapper!(has_ret, fn $f($($x)*) -> $rettype $body);
+         pub fn $f($($x)*) -> $rettype {
+            sandbox_global_create_function!(has_ret, fn $f($($x)*) -> $rettype $body)
+		}
+	 };
+     (pub fn $f:ident($($x:tt)*) $body:block ) => {
+        sandbox_global_create_wrapper!(no_ret, fn $f($($x)*) -> i32 $body);
+         pub fn $f($($x)*) {
+            sandbox_global_create_function!(no_ret, fn $f($($x)*) -> i32 $body)
+		}
+	};
      (fn $f:ident($($x:tt)*) -> $rettype:ty $body:block ) => {
         sandbox_global_create_wrapper!(has_ret, fn $f($($x)*) -> $rettype $body);
          fn $f($($x)*) -> $rettype {
             sandbox_global_create_function!(has_ret, fn $f($($x)*) -> $rettype $body)
 		}
 	 };
-
-	 // (global-)wrap a function definition, transforming it
      (fn $f:ident($($x:tt)*) $body:block ) => {
         sandbox_global_create_wrapper!(no_ret, fn $f($($x)*) -> i32 $body);
-
          fn $f($($x)*) {
             sandbox_global_create_function!(no_ret, fn $f($($x)*) -> i32 $body)
 		}
