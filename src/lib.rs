@@ -482,6 +482,54 @@ macro_rules! sandbox_global_create_function {
 }
 
 
+/// wrap a function
+///
+/// # This macro can be used in two major ways:
+///
+/// * wrap a function invocation with return value once
+/// * wrap function definitions, thereby creating a persistent sandboxed child process that all invocations of the wrapped functions are executed in
+///
+/// # Wrap a function invocation with return value once
+/// For this to work, it is generally necessary to specify the return type explicitly as the
+/// instrumentation can not infer it from the invocation.
+///
+/// ```
+/// #[macro_use]
+/// extern crate sandcrust;
+///
+/// fn base_ret() -> i32 {
+///		let ret = 23;
+///		ret
+///	}
+///
+/// fn main() {
+///		let local_ret: i32 = sandbox!(base_ret());
+/// }
+/// ```
+/// # Wrap function definitons
+///
+/// ```
+/// #[macro_use]
+/// extern crate sandcrust;
+///	use sandcrust::terminate_child;
+///	sandbox!{
+///		fn no_ret() {
+///			;
+///		}
+///	}
+///	sandbox!{
+///		fn base_ret() -> i32 {
+///			let ret = 23;
+///			ret
+///		}
+/// }
+///
+///	fn main() {
+///		no_ret();
+///		let local_ret = base_ret();
+///		terminate_child();
+///	}
+/// ```
 #[macro_export]
 macro_rules! sandbox {
 	// retval, potentially args
@@ -516,7 +564,21 @@ macro_rules! sandbox {
 }
 
 
-// no retval
+/// wrap a function without a return value once
+///
+/// unfortunately this is a necessary distinction because Rust cannot distinguish between functions
+/// with and without return value from the function call
+///
+/// ```
+/// #[macro_use]
+/// extern crate sandcrust;
+///
+/// fn no_ret() {};
+///
+/// fn main() {
+///		sandbox_no_ret!(no_ret());
+/// }
+/// ```
 #[macro_export]
 macro_rules! sandbox_no_ret {
 	($f:ident($($x:tt)*)) => {{
@@ -525,6 +587,15 @@ macro_rules! sandbox_no_ret {
 }
 
 
+/// terminate the global child
+///
+/// **Attention** calls to sandboxed functions after child termination will hang indefinitely
+///
+/// ```
+/// use sandcrust::terminate_child;
+///
+/// terminate_child();
+/// ```
 pub fn sandbox_terminate() {
 	let mut sandcrust = SANDCRUST.lock().unwrap();
 	sandcrust.terminate_child();
