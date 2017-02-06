@@ -133,6 +133,13 @@ impl Sandcrust {
 }
 
 
+impl Drop for Sandcrust {
+	fn drop(&mut self) {
+		self.terminate_child();
+	}
+}
+
+
 // FIXME: somehow refactor
 #[macro_export]
 macro_rules! store_vars {
