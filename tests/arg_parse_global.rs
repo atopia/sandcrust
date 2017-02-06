@@ -15,10 +15,10 @@ mod arg_parse_global {
 
 
 	sandbox!{
-            fn by_value_simple(a: i32) {
-            assert_eq!(a, 1);
-        }
-    }
+			fn by_value_simple(a: i32) {
+			assert_eq!(a, 1);
+		}
+	}
 
 	#[test]
 	fn by_value_simple_test() {
@@ -27,11 +27,11 @@ mod arg_parse_global {
 	}
 
 	sandbox!{
-        fn by_value_recursive(a: i32, b: i32) {
-            assert_eq!(a, 2);
-            assert_eq!(b, 3);
-        }
-    }
+		fn by_value_recursive(a: i32, b: i32) {
+			assert_eq!(a, 2);
+			assert_eq!(b, 3);
+		}
+	}
 
 	#[test]
 	fn by_value_recursive_test() {
@@ -41,11 +41,11 @@ mod arg_parse_global {
 	}
 
 	sandbox!{
-        fn by_mut_value_simple(mut a: i32) {
-            a += 1;
-            assert_eq!(a, 5);
-        }
-    }
+		fn by_mut_value_simple(mut a: i32) {
+			a += 1;
+			assert_eq!(a, 5);
+		}
+	}
 
 	#[test]
 	fn by_mut_value_simple_test() {
@@ -54,13 +54,13 @@ mod arg_parse_global {
 	}
 
 	sandbox!{
-        fn by_mixed_value_recursive(a: i32, mut b: i32) {
-            if b > a {
-                b = a;
-            }
-            assert_eq!(b, 5);
-        }
-    }
+		fn by_mixed_value_recursive(a: i32, mut b: i32) {
+			if b > a {
+				b = a;
+			}
+			assert_eq!(b, 5);
+		}
+	}
 
 	#[test]
 	fn by_mixed_value_recursive_test() {
@@ -70,10 +70,10 @@ mod arg_parse_global {
 	}
 
 	sandbox!{
-        fn by_reference_simple(a: &i32) {
-            assert_eq!(*a, 7);
-        }
-    }
+		fn by_reference_simple(a: &i32) {
+			assert_eq!(*a, 7);
+		}
+	}
 
 	#[test]
 	fn by_reference_simple_test() {
@@ -82,11 +82,11 @@ mod arg_parse_global {
 	}
 
 	sandbox!{
-        fn by_reference_recursive(a: &i32, b: &i32) {
-            assert_eq!(*a, 8);
-            assert_eq!(*b, 9);
-        }
-    }
+		fn by_reference_recursive(a: &i32, b: &i32) {
+			assert_eq!(*a, 8);
+			assert_eq!(*b, 9);
+		}
+	}
 
 	#[test]
 	fn by_reference_recursive_test() {
@@ -96,10 +96,10 @@ mod arg_parse_global {
 	}
 
 	sandbox!{
-        fn by_mut_reference_simple(a: &mut i32) {
-            *a += 1;
-        }
-    }
+		fn by_mut_reference_simple(a: &mut i32) {
+			*a += 1;
+		}
+	}
 
 	#[test]
 	fn by_mut_reference_simple_test() {
@@ -108,14 +108,14 @@ mod arg_parse_global {
 	}
 
 	sandbox!{
-        fn by_mut_reference_recursive(a: &mut i32, b: &mut i32) {
-            let swap = *a;
-            *a = *b;
-            *b = swap;
-            assert_eq!(*a, 12);
-            assert_eq!(*b, 11);
-        }
-    }
+		fn by_mut_reference_recursive(a: &mut i32, b: &mut i32) {
+			let swap = *a;
+			*a = *b;
+			*b = swap;
+			assert_eq!(*a, 12);
+			assert_eq!(*b, 11);
+		}
+	}
 
 	#[test]
 	fn by_mut_reference_recursive_test() {

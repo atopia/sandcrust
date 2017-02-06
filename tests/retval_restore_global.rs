@@ -6,10 +6,10 @@ mod retval_restore_global {
 	use sandcrust::*;
 
 	sandbox!{
-        fn no_ret() {
-            ;
-        }
-    }
+		fn no_ret() {
+			;
+		}
+	}
 
 
 	#[test]
@@ -18,11 +18,11 @@ mod retval_restore_global {
 	}
 
 	sandbox!{
-        fn base_ret() -> i32 {
-            let ret = 23;
-            ret
-        }
-    }
+		fn base_ret() -> i32 {
+			let ret = 23;
+			ret
+		}
+	}
 
 	#[test]
 	fn base_ret_test() {
@@ -31,12 +31,12 @@ mod retval_restore_global {
 	}
 
 	sandbox!{
-        fn second_base_ret(bla: &mut i32) -> i32 {
-            let ret = 23;
-            *bla = 7;
-            ret
-        }
-    }
+		fn second_base_ret(bla: &mut i32) -> i32 {
+			let ret = 23;
+			*bla = 7;
+			ret
+		}
+	}
 
 	#[test]
 	fn second_base_ret_test() {

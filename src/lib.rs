@@ -512,13 +512,13 @@ macro_rules! sandcrust_global_create_function {
 /// #[macro_use]
 /// extern crate sandcrust;
 ///	use sandcrust::*;
-///	
+///
 ///	sandbox!{
 ///		fn no_ret() {
 ///			;
 ///		}
 ///	}
-///	
+///
 ///	sandbox!{
 ///		fn base_ret() -> i32 {
 ///			let ret = 23;
@@ -574,7 +574,7 @@ macro_rules! sandbox {
 /// ```
 /// #[macro_use]
 /// extern crate sandcrust;
-/// 
+///
 /// use sandcrust::*;
 ///
 /// fn no_ret() {

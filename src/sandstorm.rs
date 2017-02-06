@@ -4,40 +4,40 @@ extern crate sandcrust;
 use sandcrust::*;
 
 sandbox!{
-    fn empty() {
-         println!("so empty!");
-    }
+	fn empty() {
+		println!("so empty!");
+	}
 }
 
 sandbox!{
-    fn Add() {
-         println!("so additional!");
-    }
+	fn Add() {
+		println!("so additional!");
+	}
 }
 
 sandbox!{
-    fn half(bla: i32) {
-         println!("so full with {}!", bla);
-    }
+	fn half(bla: i32) {
+		println!("so full with {}!", bla);
+	}
 }
 
 sandbox!{
-    fn full(bla: i32, blubb: i64) {
-         println!("so full with {} and {}!", bla, blubb);
-    }
+	fn full(bla: i32, blubb: i64) {
+		println!("so full with {} and {}!", bla, blubb);
+	}
 }
 
 sandbox!{
-    fn base_inc(a: &mut i32) {
-        *a += 1;
-    }
+	fn base_inc(a: &mut i32) {
+		*a += 1;
+	}
 }
 
 sandbox!{
-    fn base_ret() -> i32 {
-        let ret = 23;
-        ret
-    }
+	fn base_ret() -> i32 {
+		let ret = 23;
+		ret
+	}
 }
 
 fn main() {
