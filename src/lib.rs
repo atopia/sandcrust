@@ -12,11 +12,21 @@ use std::os::unix::io::FromRawFd;
 
 use sandheap as sandbox;
 
-pub type SandcrustPid = nix::libc::pid_t;
-// pub use because of https://github.com/rust-lang/rust/issues/31355
-pub use nix::unistd::ForkResult as SandcrustForkResult;
+// wrap pid_t in own type to avoid re-import problems with nix
+#[doc(hidden)]
+pub type SandcrustPid = ::nix::libc::pid_t;
 
-// needed as a wrapper for all the imported uses
+// pub use because of https://github.com/rust-lang/rust/issues/31355
+#[doc(hidden)]
+pub use ::nix::unistd::ForkResult as SandcrustForkResult;
+
+
+// fake datatype to implement wrappers on, see below
+#[doc(hidden)]
+pub struct SandcrustWrapper;
+
+
+// main data structure for sandcrust
 #[doc(hidden)]
 pub struct Sandcrust {
 	file_in: ::std::fs::File,
@@ -24,18 +34,25 @@ pub struct Sandcrust {
 	child: SandcrustPid,
 }
 
+
+// lazily initialized global Sandcrust object (via Deref magic) for global sandbox
 lazy_static! {
+	#[doc(hidden)]
 	pub static ref SANDCRUST: ::std::sync::Arc<::std::sync::Mutex<Sandcrust>> = {
-		std::sync::Arc::new(std::sync::Mutex::new(Sandcrust::new_global()))
+		std::sync::Arc::new(std::sync::Mutex::new(Sandcrust::fork_new()))
 	};
 }
+
 
 // necessary, because once the child is initialized, we need a lightweight, non-locking check to
 // run the original function
 // changing this is protected by SANDCRUST's mutex
+#[doc(hidden)]
 pub static mut INITIALIZED_CHILD: bool = false;
 
+
 impl Sandcrust {
+	/// new Sandcrust object for one time use
 	pub fn new() -> Sandcrust {
 		let (fd_out, fd_in) = nix::unistd::pipe().unwrap();
 		Sandcrust {
@@ -45,34 +62,11 @@ impl Sandcrust {
 		}
 	}
 
-	// if we're the child, but not yet initialized, run child loop
-	pub fn initialize_child(&mut self) {
-		if !unsafe { INITIALIZED_CHILD } && self.child == 0 {
-			unsafe { INITIALIZED_CHILD = true };
-			self.run_child_loop();
-		}
-	}
-
-	pub fn setup_sandbox(&self) {
-		sandbox::setup();
-	}
-
-	fn run_child_loop(&mut self) {
-		self.setup_sandbox();
-		loop {
-			let func_int: u64 = self.restore_var_from_fifo();
-			if func_int == 0 {
-				::std::process::exit(0);
-			} else {
-				unsafe {
-					let func: fn(&mut Sandcrust) = std::mem::transmute_copy(&func_int);
-					func(self);
-				}
-			}
-		}
-	}
-
-	pub fn new_global() -> Sandcrust {
+	/// new Sandcrust object for global use
+	///
+	/// creates a pipe of pairs, forks and returns Sandcrust objects with the appropriate pipe
+	/// ends bound to file_in and file_out
+	pub fn fork_new() -> Sandcrust {
 		let (child_cmd_receive, parent_cmd_send) = ::nix::unistd::pipe().unwrap();
 		let (parent_result_receive, child_result_send) = ::nix::unistd::pipe().unwrap();
 
@@ -98,6 +92,45 @@ impl Sandcrust {
 		sandcrust
 	}
 
+	/// check if the process is unintialized child process and run child loop
+	///
+	/// as noted above, modifications to static mut INITIALIZED_CHILD are protected by the mutex
+	/// held on the global Sandcrust object
+	pub fn initialize_child(&mut self) {
+		if !unsafe { INITIALIZED_CHILD } && self.child == 0 {
+			unsafe { INITIALIZED_CHILD = true };
+			self.run_child_loop();
+		}
+	}
+
+
+	/// wrapper to set up an external sandbox
+	pub fn setup_sandbox(&self) {
+		sandbox::setup();
+	}
+
+
+	/// client side loop
+	///
+	/// take unsigned number from comand pipe, convert to function pointer and run it
+	/// if command number is 0, exit the child process
+	fn run_child_loop(&mut self) {
+		self.setup_sandbox();
+		loop {
+			let func_int: u64 = self.restore_var_from_fifo();
+			if func_int == 0 {
+				::std::process::exit(0);
+			} else {
+				unsafe {
+					let func: fn(&mut Sandcrust) = std::mem::transmute_copy(&func_int);
+					func(self);
+				}
+			}
+		}
+	}
+
+
+	/// waits for process with child pid
 	pub fn join_child(&self) {
 		match nix::sys::wait::waitpid(self.child, None) {
 			Ok(_) => {}
@@ -105,6 +138,8 @@ impl Sandcrust {
 		}
 	}
 
+
+	/// put variable in pipe
 	pub fn put_var_in_fifo<T: ::rustc_serialize::Encodable>(&mut self, var: T) {
 		::bincode::rustc_serialize::encode_into(&var,
 												&mut self.file_in,
@@ -112,27 +147,34 @@ impl Sandcrust {
 			.unwrap();
 	}
 
+
+	/// restore variable from pipe
 	pub fn restore_var_from_fifo<T: ::rustc_serialize::Decodable>(&mut self) -> T {
 		::bincode::rustc_serialize::decode_from(&mut self.file_out, ::bincode::SizeLimit::Infinite)
 			.unwrap()
 	}
 
+
+	/// send '0' command pointer to child loop, causing child to shut down
 	pub fn terminate_child(&mut self) {
 		self.put_var_in_fifo(0u64);
 		self.join_child();
 	}
 
+
+	/// set child attribute to acquired value
 	pub fn set_child(&mut self, child: SandcrustPid) {
 		self.child = child;
 	}
 
-	// wrap fork to avoid exporting nix
-	pub fn fork(&self) -> std::result::Result<SandcrustForkResult, nix::Error> {
+	/// wrap fork for use in one-time sandbox macro to avoid exporting nix
+	pub fn fork(&self) -> std::result::Result<SandcrustForkResult, ::nix::Error> {
 		nix::unistd::fork()
 	}
 }
 
 
+/// terminate child when Sancrust object goes out of scope
 impl Drop for Sandcrust {
 	fn drop(&mut self) {
 		self.terminate_child();
@@ -140,43 +182,94 @@ impl Drop for Sandcrust {
 }
 
 
-// FIXME: somehow refactor
+/// store potentially changed vars into the pipe from child to parent
+#[doc(hidden)]
 #[macro_export]
-macro_rules! store_vars {
+macro_rules! store_changed_vars {
 	($sandcrust:ident, &mut $head:ident) => { $sandcrust.put_var_in_fifo($head); };
 	($sandcrust:ident, &mut $head:ident, $($tail:tt)*) => {
 		$sandcrust.put_var_in_fifo($head);
-		store_vars!($sandcrust, $($tail)*);
+		store_changed_vars!($sandcrust, $($tail)*);
 	};
 	($sandcrust:ident, &$head:ident) => { };
-
 	($sandcrust:ident, &$head:ident, $($tail:tt)+) => {
-		store_vars!($sandcrust, $($tail)*);
+		store_changed_vars!($sandcrust, $($tail)*);
 	};
 	($sandcrust:ident, $head:ident) => { };
 	($sandcrust:ident, $head:ident, $($tail:tt)+) => {
-		store_vars!($sandcrust, $($tail)*);
+		store_changed_vars!($sandcrust, $($tail)*);
 	};
 	($sandcrust:ident, ) => {};
 }
 
 
-// FIXME: somehow refactor
+/// restore potentially changed vars from pipe in the parent after IPC call
+#[doc(hidden)]
 #[macro_export]
-macro_rules! push_args {
+macro_rules! restore_changed_vars {
+	// only restore mut types
+	($sandcrust:ident, &mut $head:ident) => {
+		$head = $sandcrust.restore_var_from_fifo();
+	};
+	($sandcrust:ident, &mut $head:ident, $($tail:tt)+) => {
+		$head = $sandcrust.restore_var_from_fifo();
+		restore_changed_vars!($sandcrust, $($tail)+);
+	};
+	($sandcrust:ident, &$head:ident) => { };
+	($sandcrust:ident, &$head:ident, $($tail:tt)+) => { restore_changed_vars!($sandcrust, $($tail)+); };
+	($sandcrust:ident, $head:ident) => { };
+	($sandcrust:ident, $head:ident, $($tail:tt)+) => { restore_changed_vars!($sandcrust, $($tail)+); };
+	($sandcrust:ident, ) => {};
+}
+
+
+/// restore potentially changed vars from pipe in the parent after IPC call
+///
+/// global version - this would be a merge candidate with restore_changed_vars,
+/// but inside the function &mut vars need to be dereferenced
+#[doc(hidden)]
+#[macro_export]
+macro_rules! restore_changed_vars_global {
+	($sandcrust:ident, $head:ident : &mut $typo:ty) => {
+		*$head = $sandcrust.restore_var_from_fifo();
+	};
+	($sandcrust:ident, $head:ident : &mut $typo:ty, $($tail:tt)+) => {
+		*$head = $sandcrust.restore_var_from_fifo();
+		restore_changed_vars_global!($sandcrust, $($tail)+);
+	};
+	($sandcrust:ident, $head:ident : &$typo:ty) => { };
+	($sandcrust:ident, $head:ident : &$typo:ty, $($tail:tt)+) => {
+		restore_changed_vars_global!($sandcrust, $($tail)+);
+	};
+	($sandcrust:ident, $head:ident : $typo:ty, $($tail:tt)+) => {
+		restore_changed_vars_global!($sandcrust, $($tail)+);
+	};
+	($sandcrust:ident, mut $head:ident : $typo:ty ) => { };
+	($sandcrust:ident, mut $head:ident : $typo:ty, $($tail:tt)+) => {
+		restore_changed_vars_global!($sandcrust, $($tail)+);
+	};
+	($sandcrust:ident, $head:ident : $typo:ty ) => { };
+	($sandcrust:ident, ) => {};
+}
+
+
+/// push function arguments to global client in case they have changed since forking
+#[doc(hidden)]
+#[macro_export]
+macro_rules! push_function_args {
 	($sandcrust:ident, $head:ident : &mut $typo:ty) => { $sandcrust.put_var_in_fifo(*$head); };
 	($sandcrust:ident, $head:ident : &mut $typo:ty, $($tail:tt)+) => {
 		$sandcrust.put_var_in_fifo(*$head);
-		push_args!($sandcrust, $($tail)+);
+		push_function_args!($sandcrust, $($tail)+);
 	};
 	($sandcrust:ident, $head:ident : &$typo:ty) => { $sandcrust.put_var_in_fifo($head); };
 	($sandcrust:ident, $head:ident : &$typo:ty, $($tail:tt)+) => {
 		$sandcrust.put_var_in_fifo($head);
-		push_args!($sandcrust, $($tail)+);
+		push_function_args!($sandcrust, $($tail)+);
 	};
 	($sandcrust:ident, $head:ident : $typo:ty, $($tail:tt)+) => {
 		$sandcrust.put_var_in_fifo($head);
-		push_args!($sandcrust, $($tail)+);
+		push_function_args!($sandcrust, $($tail)+);
 	};
 	($sandcrust:ident, $head:ident : $typo:ty ) => {
 		$sandcrust.put_var_in_fifo($head);
@@ -184,57 +277,33 @@ macro_rules! push_args {
 	($sandcrust:ident, mut $head:ident : $typo:ty ) => { $sandcrust.put_var_in_fifo($head); };
 	($sandcrust:ident, mut $head:ident : $typo:ty, $($tail:tt)+) => {
 		$sandcrust.put_var_in_fifo($head);
-		push_args!($sandcrust, $($tail)+);
+		push_function_args!($sandcrust, $($tail)+);
 	};
 	($sandcrust:ident, ) => {};
 }
 
-// this would be a merge candidate with restore_vars,
-// but inside the function &mut vars need to be dereferenced
-#[macro_export]
-macro_rules! restore_vars_global {
-	($sandcrust:ident, $head:ident : &mut $typo:ty) => {
-		*$head = $sandcrust.restore_var_from_fifo();
-	};
-	($sandcrust:ident, $head:ident : &mut $typo:ty, $($tail:tt)+) => {
-		*$head = $sandcrust.restore_var_from_fifo();
-		restore_vars_global!($sandcrust, $($tail)+);
-	};
-	($sandcrust:ident, $head:ident : &$typo:ty) => { };
-	($sandcrust:ident, $head:ident : &$typo:ty, $($tail:tt)+) => {
-		restore_vars_global!($sandcrust, $($tail)+);
-	};
-	($sandcrust:ident, $head:ident : $typo:ty, $($tail:tt)+) => {
-		restore_vars_global!($sandcrust, $($tail)+);
-	};
-	($sandcrust:ident, mut $head:ident : $typo:ty ) => { };
-	($sandcrust:ident, mut $head:ident : $typo:ty, $($tail:tt)+) => {
-		restore_vars_global!($sandcrust, $($tail)+);
-	};
-	($sandcrust:ident, $head:ident : $typo:ty ) => { };
-	($sandcrust:ident, ) => {};
-}
 
-// FIXME: somehow refactor
+/// pull function arguments in global client
+#[doc(hidden)]
 #[macro_export]
-macro_rules! pull_args {
+macro_rules! pull_function_args {
 	($sandcrust:ident, $head:ident : &mut $typo:ty) => {
 		let mut $head: $typo = $sandcrust.restore_var_from_fifo();
 	};
 	($sandcrust:ident, $head:ident : &mut $typo:ty, $($tail:tt)+) => {
 		let mut $head: $typo = $sandcrust.restore_var_from_fifo();
-		pull_args!($sandcrust, $($tail)+);
+		pull_function_args!($sandcrust, $($tail)+);
 	};
 	($sandcrust:ident, $head:ident : &$typo:ty) => {
 		let $head: $typo = $sandcrust.restore_var_from_fifo();
 	};
 	($sandcrust:ident, $head:ident : &$typo:ty, $($tail:tt)+) => {
 		let $head: $typo = $sandcrust.restore_var_from_fifo();
-		pull_args!($sandcrust, $($tail)+);
+		pull_function_args!($sandcrust, $($tail)+);
 	};
 	($sandcrust:ident, $head:ident : $typo:ty, $($tail:tt)+) => {
 		let $head: $typo = $sandcrust.restore_var_from_fifo();
-		pull_args!($sandcrust, $($tail)+);
+		pull_function_args!($sandcrust, $($tail)+);
 	};
 	($sandcrust:ident, $head:ident : $typo:ty ) => {
 		let $head: $typo = $sandcrust.restore_var_from_fifo();
@@ -244,44 +313,37 @@ macro_rules! pull_args {
 	};
 	($sandcrust:ident, mut $head:ident : $typo:ty, $($tail:tt)+) => {
 		let mut $head: $typo = $sandcrust.restore_var_from_fifo();
-		pull_args!($sandcrust, $($tail)+);
+		pull_function_args!($sandcrust, $($tail)+);
 	};
 	($sandcrust:ident, ) => {};
 }
 
-#[macro_export]
-macro_rules! restore_vars {
-	// only restore mut types
-	($sandcrust:ident, &mut $head:ident) => {
-		$head = $sandcrust.restore_var_from_fifo();
-	};
-	($sandcrust:ident, &mut $head:ident, $($tail:tt)+) => {
-		$head = $sandcrust.restore_var_from_fifo();
-		restore_vars!($sandcrust, $($tail)+);
-	};
-	($sandcrust:ident, &$head:ident) => { };
-	($sandcrust:ident, &$head:ident, $($tail:tt)+) => { restore_vars!($sandcrust, $($tail)+); };
-	($sandcrust:ident, $head:ident) => { };
-	($sandcrust:ident, $head:ident, $($tail:tt)+) => { restore_vars!($sandcrust, $($tail)+); };
-	($sandcrust:ident, ) => {};
-}
 
-
+/// run function, gathering return value if available
+#[doc(hidden)]
 #[macro_export]
 macro_rules! run_func {
 	(has_ret, $sandcrust:ident, $f:ident($($x:tt)*)) => {
 		let retval = $f($($x)*);
-		store_vars!($sandcrust, $($x)*);
+		store_changed_vars!($sandcrust, $($x)*);
 		$sandcrust.put_var_in_fifo(&retval);
 	};
 	(no_ret, $sandcrust:ident, $f:ident($($x:tt)*)) => {
 		$f($($x)*);
-		store_vars!($sandcrust, $($x)*);
+		store_changed_vars!($sandcrust, $($x)*);
 	};
 }
 
+
+/// collect return value in parent, if available
+#[doc(hidden)]
 #[macro_export]
 macro_rules! collect_ret {
+	(has_ret, $rettype:ty, $sandcrust:ident) => {{
+		let retval: $rettype = $sandcrust.restore_var_from_fifo();
+		retval
+	}};
+	(no_ret, $rettype:ty, $sandcrust:ident) => { () };
 	(has_ret, $sandcrust:ident) => {{
 		let retval = $sandcrust.restore_var_from_fifo();
 		$sandcrust.join_child();
@@ -293,10 +355,13 @@ macro_rules! collect_ret {
 }
 
 
-// matching hell, but there is nothing else to do because Push Down Accumulation is a necessity
-// https://danielkeep.github.io/tlborm/book/pat-push-down-accumulation.html#incremental-tt-munchers
-// unfortunately, using $head:expr seems to match a single macro defition, but fails to expand in a
-// subsequent macro
+/// strip argument types from function definition for calling the function
+///
+/// matching hell, but there is nothing else to do because Push Down Accumulation is a necessity
+/// (see https://danielkeep.github.io/tlborm/book/pat-push-down-accumulation.html#incremental-tt-munchers)
+/// unfortunately, using $head:expr seems to match a single macro defition, but fails to expand in a
+///  subsequent macro
+#[doc(hidden)]
 #[macro_export]
 macro_rules! strip_types {
 	($called_macro:ident, $has_retval:ident, $sandcrust:ident, ($head:ident : &mut $typo:ty, $($tail:tt)+) -> ($f:ident($($body:tt)+))) => (strip_types!($called_macro, $has_retval, $sandcrust, ($($tail)+) -> ($f($($body)+, &mut $head))));
@@ -324,14 +389,15 @@ macro_rules! strip_types {
 }
 
 
-
+/// internal abstraction for single run with and without return value
+#[doc(hidden)]
 #[macro_export]
 macro_rules! sandbox_internal {
 	($has_retval:ident, $f:ident($($x:tt)*)) => {{
 		let mut sandcrust = $crate::Sandcrust::new();
 		match sandcrust.fork() {
 			Ok($crate::SandcrustForkResult::Parent { child, .. }) => {
-				restore_vars!(sandcrust, $($x)*);
+				restore_changed_vars!(sandcrust, $($x)*);
 				sandcrust.set_child(child);
 			},
 			Ok($crate::SandcrustForkResult::Child) => {
@@ -345,18 +411,9 @@ macro_rules! sandbox_internal {
 	}};
 }
 
-pub struct SandcrustWrapper;
 
-#[macro_export]
-macro_rules! collect_ret_global {
-	(has_ret, $rettype:ty, $sandcrust:ident) => {{
-		let retval: $rettype = $sandcrust.restore_var_from_fifo();
-		retval
-	}};
-	(no_ret, $rettype:ty, $sandcrust:ident) => { () };
-}
-
-
+/// create global SandcrustWrapper Trait to update client arguments and run the function
+#[doc(hidden)]
 #[macro_export]
 macro_rules! sandbox_global_create_wrapper {
 	($has_retval:ident, fn $f:ident($($x:tt)*)) => {
@@ -381,16 +438,19 @@ macro_rules! sandbox_global_create_wrapper {
 		impl $f for $crate::SandcrustWrapper {
 			fn $f(sandcrust: &mut $crate::Sandcrust) {
 				//println!("look I got magic going!: {}", ::nix::unistd::getpid());
-				pull_args!(sandcrust, $($x)*);
+				pull_function_args!(sandcrust, $($x)*);
 				strip_types!(run_func, $has_retval, sandcrust, $f($($x)*));
 			}
 		}
 	};
 }
 
-// possibly called by PARENT (and child):
-// FIXME: am besten gleich: je nach direkt-c oder nicht die in Ruhe lassen und nen anderen
-// wrapper nehmen
+
+/// create global funtion definition in place of the original
+///
+/// possibly called by PARENT (and child):
+/// FIXME: am besten gleich: je nach direkt-c oder nicht die in Ruhe lassen und nen anderen wrapper nehmen
+#[doc(hidden)]
 #[macro_export]
 macro_rules! sandbox_global_create_function {
 	($has_retval:ident, fn $f:ident($($x:tt)*) -> $rettype:ty $body:block ) => {
@@ -414,9 +474,9 @@ macro_rules! sandbox_global_create_function {
 						let func_int: u64 = ::std::mem::transmute(func);
 						sandcrust.put_var_in_fifo(&func_int);
 					}
-					push_args!(sandcrust, $($x)*);
-					restore_vars_global!(sandcrust, $($x)*);
-					collect_ret_global!($has_retval, $rettype, sandcrust)
+					push_function_args!(sandcrust, $($x)*);
+					restore_changed_vars_global!(sandcrust, $($x)*);
+					collect_ret!($has_retval, $rettype, sandcrust)
 			}
 	};
 }
