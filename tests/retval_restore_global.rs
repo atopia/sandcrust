@@ -48,6 +48,6 @@ mod retval_restore_global {
 
 	#[test]
 	fn kill_it() {
-		sandbox_terminate();
+		sandcrust_terminate();
 	}
 }

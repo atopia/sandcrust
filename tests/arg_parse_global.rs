@@ -126,6 +126,6 @@ mod arg_parse_global {
 
 	#[test]
 	fn kill_it() {
-		sandbox_terminate();
+		sandcrust_terminate();
 	}
 }
