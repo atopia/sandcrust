@@ -257,9 +257,9 @@ macro_rules! sandcrust_restore_changed_vars_global {
 #[doc(hidden)]
 #[macro_export]
 macro_rules! sandcrust_push_function_args {
-	($sandcrust:ident, $head:ident : &mut $typo:ty) => { $sandcrust.put_var_in_fifo(*$head); };
+	($sandcrust:ident, $head:ident : &mut $typo:ty) => { $sandcrust.put_var_in_fifo(&*$head); };
 	($sandcrust:ident, $head:ident : &mut $typo:ty, $($tail:tt)+) => {
-		$sandcrust.put_var_in_fifo(*$head);
+		$sandcrust.put_var_in_fifo(&*$head);
 		sandcrust_push_function_args!($sandcrust, $($tail)+);
 	};
 	($sandcrust:ident, $head:ident : &$typo:ty) => { $sandcrust.put_var_in_fifo($head); };
@@ -428,6 +428,7 @@ macro_rules! sandcrust_global_create_wrapper {
 		//	a simple $f_wrapped won't do in any way: https://github.com/rust-lang/rust/issues/12249
 		#[allow(non_camel_case_types)]
 		trait $f {
+			#[allow(non_snake_case)]
 			fn $f(sandcrust: &mut $crate::Sandcrust);
 		}
 
@@ -578,7 +579,7 @@ macro_rules! sandbox {
 /// use sandcrust::*;
 ///
 /// fn no_ret() {
-///     ;
+///		;
 /// }
 ///
 /// fn main() {
