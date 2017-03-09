@@ -1,17 +1,21 @@
-extern crate rustc_serialize;
+#[macro_use]
+extern crate serde_derive;
+
 #[macro_use]
 extern crate sandcrust;
 
 #[cfg(test)]
 mod complex_restore {
 
-	#[derive(RustcEncodable, RustcDecodable, PartialEq)]
+
+
+    #[derive(Serialize, Deserialize, PartialEq)]
 	struct Entity {
 		x: f32,
 		y: f32,
 	}
 
-	#[derive(RustcEncodable, RustcDecodable, PartialEq)]
+    #[derive(Serialize, Deserialize, PartialEq)]
 	struct World {
 		entities: Vec<Entity>,
 	}

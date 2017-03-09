@@ -1,7 +1,7 @@
 extern crate nix;
 
 extern crate bincode;
-extern crate rustc_serialize;
+extern crate serde;
 
 extern crate sandheap;
 
@@ -140,17 +140,17 @@ impl Sandcrust {
 
 
 	/// put variable in pipe
-	pub fn put_var_in_fifo<T: ::rustc_serialize::Encodable>(&mut self, var: T) {
-		::bincode::rustc_serialize::encode_into(&var,
-												&mut self.file_in,
+	pub fn put_var_in_fifo<T: ::serde::Serialize>(&mut self, var: T) {
+		::bincode::serialize_into(&mut self.file_in,
+												&var,
 												::bincode::SizeLimit::Infinite)
 			.unwrap();
 	}
 
 
 	/// restore variable from pipe
-	pub fn restore_var_from_fifo<T: ::rustc_serialize::Decodable>(&mut self) -> T {
-		::bincode::rustc_serialize::decode_from(&mut self.file_out, ::bincode::SizeLimit::Infinite)
+	pub fn restore_var_from_fifo<T: ::serde::Deserialize>(&mut self) -> T {
+		::bincode::deserialize_from(&mut self.file_out, ::bincode::SizeLimit::Infinite)
 			.unwrap()
 	}
 
