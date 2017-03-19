@@ -200,6 +200,11 @@ macro_rules! sandcrust_store_changed_vars {
 	($sandcrust:ident, &$head:ident, $($tail:tt)+) => {
 		sandcrust_store_changed_vars!($sandcrust, $($tail)*);
 	};
+	// actually, the stmt match (for directly passing values) is greedy and will match the next ident, too
+	($sandcrust:ident, $head:stmt) => { };
+	($sandcrust:ident, $head:stmt, $($tail:tt)+) => {
+		sandcrust_store_changed_vars!($sandcrust, $($tail)*);
+	};
 	($sandcrust:ident, $head:ident) => { };
 	($sandcrust:ident, $head:ident, $($tail:tt)+) => {
 		sandcrust_store_changed_vars!($sandcrust, $($tail)*);
@@ -222,6 +227,9 @@ macro_rules! sandcrust_restore_changed_vars {
 	};
 	($sandcrust:ident, &$head:ident) => { };
 	($sandcrust:ident, &$head:ident, $($tail:tt)+) => { sandcrust_restore_changed_vars!($sandcrust, $($tail)+); };
+	// actually, the stmt match (for directly passing values) is greedy and will match the next ident, too
+	($sandcrust:ident, $head:stmt) => { };
+	($sandcrust:ident, $head:stmt, $($tail:tt)+) => { sandcrust_restore_changed_vars!($sandcrust, $($tail)+); };
 	($sandcrust:ident, $head:ident) => { };
 	($sandcrust:ident, $head:ident, $($tail:tt)+) => { sandcrust_restore_changed_vars!($sandcrust, $($tail)+); };
 	($sandcrust:ident, ) => {};

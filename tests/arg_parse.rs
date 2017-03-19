@@ -34,6 +34,15 @@ mod arg_parse {
 		sandbox_no_ret!(by_value_recursive(a, b));
 	}
 
+	fn by_direct_value(a: i32) {
+		assert_eq!(a, 32);
+	}
+
+	#[test]
+	fn by_direct_value_test() {
+		sandbox_no_ret!(by_direct_value(42));
+	}
+
 	fn by_mut_value_simple(mut a: i32) {
 		a += 1;
 		assert_eq!(a, 5);
