@@ -76,7 +76,7 @@ impl Sandcrust {
 		let (child_cmd_receive, parent_cmd_send) = ::nix::unistd::pipe().unwrap();
 		let (parent_result_receive, child_result_send) = ::nix::unistd::pipe().unwrap();
 
-        #[allow(unused_mut)]
+		#[allow(unused_mut)]
 		let mut sandcrust = match ::nix::unistd::fork() {
 			Ok(::nix::unistd::ForkResult::Parent { child, .. }) => {
 				Sandcrust {
@@ -124,6 +124,9 @@ impl Sandcrust {
 	fn run_child_loop(&mut self) {
 		self.setup_sandbox();
 		loop {
+			#[cfg(target_pointer_width = "32")]
+			let func_int: u32 = self.restore_var_from_fifo();
+			#[cfg(target_pointer_width = "64")]
 			let func_int: u64 = self.restore_var_from_fifo();
 			if func_int == 0 {
 				::std::process::exit(0);
@@ -471,6 +474,9 @@ macro_rules! sandcrust_global_create_function {
 					// ... sent as u64 because this will be serializable
 					// FIXME use if cfg!(target_pointer_width = "32"), but seems broken
 					unsafe {
+						#[cfg(target_pointer_width = "32")]
+						let func_int: u32 = ::std::mem::transmute(func);
+						#[cfg(target_pointer_width = "64")]
 						let func_int: u64 = ::std::mem::transmute(func);
 						sandcrust.put_var_in_fifo(&func_int);
 					}
