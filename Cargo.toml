@@ -15,7 +15,7 @@ path = "src/sandstorm.rs"
 nix = "*"
 libc = "*"
 sandheap = { path = "../sandheap" }
-bincode = "1.0.0-alpha5"
+bincode = "1.0.0-alpha6"
 rustc-serialize = "*"
 lazy_static = "*"
 serde_derive = "*"
