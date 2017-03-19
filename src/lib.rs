@@ -6,6 +6,9 @@ extern crate serde;
 extern crate sandheap;
 
 #[macro_use]
+extern crate serde_derive;
+
+#[macro_use]
 extern crate lazy_static;
 
 use std::os::unix::io::FromRawFd;
@@ -25,6 +28,8 @@ pub use ::nix::unistd::ForkResult as SandcrustForkResult;
 #[doc(hidden)]
 pub struct SandcrustWrapper;
 
+pub use serde_derive::*;
+pub use serde::{Serialize, Deserialize};
 
 // main data structure for sandcrust
 #[doc(hidden)]
