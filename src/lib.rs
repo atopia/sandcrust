@@ -179,14 +179,6 @@ impl Sandcrust {
 }
 
 
-/// terminate child when Sancrust object goes out of scope
-impl Drop for Sandcrust {
-	fn drop(&mut self) {
-		self.terminate_child();
-	}
-}
-
-
 /// store potentially changed vars into the pipe from child to parent
 #[doc(hidden)]
 #[macro_export]
