@@ -5,6 +5,7 @@ extern crate serde;
 
 extern crate sandheap;
 
+#[allow(unused_imports)]
 #[macro_use]
 extern crate serde_derive;
 
@@ -75,6 +76,7 @@ impl Sandcrust {
 		let (child_cmd_receive, parent_cmd_send) = ::nix::unistd::pipe().unwrap();
 		let (parent_result_receive, child_result_send) = ::nix::unistd::pipe().unwrap();
 
+        #[allow(unused_mut)]
 		let mut sandcrust = match ::nix::unistd::fork() {
 			Ok(::nix::unistd::ForkResult::Parent { child, .. }) => {
 				Sandcrust {
