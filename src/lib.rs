@@ -13,6 +13,7 @@ extern crate serde_derive;
 extern crate lazy_static;
 
 use std::os::unix::io::FromRawFd;
+use std::os::unix::io::AsRawFd;
 
 use sandheap as sandbox;
 
@@ -113,7 +114,9 @@ impl Sandcrust {
 
 	/// wrapper to set up an external sandbox
 	pub fn setup_sandbox(&self) {
-		sandbox::setup();
+		let file_in = self.file_in.as_raw_fd();
+		let file_out = self.file_out.as_raw_fd();
+		sandbox::setup(file_in, file_out);
 	}
 
 
