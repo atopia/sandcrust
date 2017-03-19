@@ -591,6 +591,16 @@ macro_rules! sandbox_no_ret {
 }
 
 
+/// Explicitly initialize the stateful sandbox.
+///
+/// This is unnecessary during normal use, but useful to set up the sandboxing mechanism at a
+/// defined point in program execution, e.g. before loading senstive data into the address space.
+pub fn sandcrust_init() {
+	#[allow(unused_variables)]
+	let sandcrust = SANDCRUST.lock().unwrap();
+}
+
+
 /// terminate the global child
 ///
 /// **Attention** calls to sandboxed functions after child termination will hang indefinitely
