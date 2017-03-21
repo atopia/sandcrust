@@ -660,6 +660,12 @@ macro_rules! sandbox_no_ret {
 ///
 /// This is unnecessary during normal use, but useful to set up the sandboxing mechanism at a
 /// defined point in program execution, e.g. before loading senstive data into the address space.
+///
+/// ```no_run
+/// use sandcrust::*;
+///
+/// sandcrust_init();
+/// ```
 pub fn sandcrust_init() {
 	let mut sandcrust = SANDCRUST.lock().unwrap();
 	if sandcrust.child == -1 {
@@ -670,7 +676,8 @@ pub fn sandcrust_init() {
 
 /// terminate the global child
 ///
-/// **Attention** calls to sandboxed functions after child termination will hang indefinitely
+/// **Attention** calls to sandboxed functions after child termination will panic if the
+/// "auto_respawn" compile time feature is not enabled.
 ///
 /// ```no_run
 /// use sandcrust::*;
