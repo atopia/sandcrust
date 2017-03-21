@@ -11,6 +11,9 @@ path = "src/lib.rs"
 name = "sandstorm"
 path = "src/sandstorm.rs"
 
+[features]
+auto_respawn = [ ]
+
 [dependencies]
 nix = "*"
 libc = "*"

@@ -42,9 +42,17 @@ sandbox!{
 
 fn main() {
 	Add();
+	println!("before init");
+	sandcrust_init();
+	println!("after init");
 	half(32);
+	sandcrust_terminate();
+	println!("after terminate");
 	full(32, 1);
 	let mut a: i32 = 23;
+	println!("after auto-launch");
+	sandcrust_init();
+	println!("after re-launch");
 	base_inc(&mut a);
 	assert_eq!(a, 24);
 	let local_ret = base_ret();

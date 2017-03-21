@@ -134,6 +134,13 @@ impl Sandcrust {
 	/// as noted above, modifications to static mut SANDCRUST_INITIALIZED_CHILD are protected by the mutex
 	/// held on the global Sandcrust object
 	pub fn initialize_child(&mut self) {
+		if !unsafe { SANDCRUST_INITIALIZED_CHILD } && self.child == -1 {
+			// Sandbox was terminated, respawn if feature enabled, else fail
+			#[cfg(feature = "auto_respawn")]
+			self.respawn();
+			#[cfg(not(feature = "auto_respawn"))]
+			panic!("attempted to call sandboxed function after Sandbox termination");
+		}
 		if !unsafe { SANDCRUST_INITIALIZED_CHILD } && self.child == 0 {
 			unsafe { SANDCRUST_INITIALIZED_CHILD = true };
 			self.run_child_loop();
@@ -173,9 +180,9 @@ impl Sandcrust {
 
 
 	/// waits for process with child pid
-	pub fn join_child(&self) {
+	pub fn join_child(&mut self) {
 		match nix::sys::wait::waitpid(self.child, None) {
-			Ok(_) => {}
+			Ok(_) => { self.child = -1 }
 			Err(e) => println!("sandcrust waitpid() failed with error {}", e),
 		}
 	}
@@ -207,6 +214,16 @@ impl Sandcrust {
 	/// set child attribute to acquired value
 	pub fn set_child(&mut self, child: SandcrustPid) {
 		self.child = child;
+	}
+
+
+	/// respawn sandcrust, setting up new Sandbox
+	fn respawn(&mut self) {
+		println!("re-initializing sandcrust...");
+		let new_sandcrust = Sandcrust::fork_new();
+		self.file_in = new_sandcrust.file_in;
+		self.file_out = new_sandcrust.file_out;
+		self.child = new_sandcrust.child;
 	}
 
 	/// wrap fork for use in one-time sandbox macro to avoid exporting nix
@@ -644,8 +661,10 @@ macro_rules! sandbox_no_ret {
 /// This is unnecessary during normal use, but useful to set up the sandboxing mechanism at a
 /// defined point in program execution, e.g. before loading senstive data into the address space.
 pub fn sandcrust_init() {
-	#[allow(unused_variables)]
-	let sandcrust = SANDCRUST.lock().unwrap();
+	let mut sandcrust = SANDCRUST.lock().unwrap();
+	if sandcrust.child == -1 {
+		sandcrust.respawn();
+	}
 }
 
 
