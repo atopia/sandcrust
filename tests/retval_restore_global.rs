@@ -45,9 +45,4 @@ mod retval_restore_global {
 		assert_eq!(local_ret, 23);
 		assert_eq!(bla, 7);
 	}
-
-	#[test]
-	fn kill_it() {
-		sandcrust_terminate();
-	}
 }

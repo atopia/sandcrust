@@ -50,5 +50,4 @@ fn main() {
 	let local_ret = base_ret();
 	assert_eq!(local_ret, 23);
 	empty();
-	sandcrust_terminate();
 }

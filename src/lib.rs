@@ -77,6 +77,8 @@ impl Sandcrust {
 		let (child_cmd_receive, parent_cmd_send) = ::nix::unistd::pipe().unwrap();
 		let (parent_result_receive, child_result_send) = ::nix::unistd::pipe().unwrap();
 
+		// get pid to check for parent termination
+		let ppid = ::nix::unistd::getpid();
 		#[allow(unused_mut)]
 		let mut sandcrust = match ::nix::unistd::fork() {
 			Ok(::nix::unistd::ForkResult::Parent { child, .. }) => {
@@ -87,6 +89,33 @@ impl Sandcrust {
 				}
 			}
 			Ok(::nix::unistd::ForkResult::Child) => {
+				// On Linux, instruct the kernel to kill the child when parent exits.
+				// Compare recorded PID to current parent process ID to eliminate race condition.
+				// Solution courtesy of
+				// https://stackoverflow.com/questions/284325/how-to-make-child-process-die-after-parent-exits
+				#[cfg(target_os="linux")]
+				{
+					unsafe {
+						::nix::libc::prctl(::nix::libc::PR_SET_PDEATHSIG, ::nix::libc::SIGHUP);
+					}
+					if ::nix::unistd::getppid() != ppid {
+						::std::process::exit(0);
+					}
+				}
+
+				// on Unices other that Linux, poll for parent exit every 10 seconds
+				// During normal operation this threat gets cleaned up on exit.
+				#[cfg(all(not(target_os="linux"),unix))]
+				thread::spawn(move | | {
+					loop {
+						if ::nix::unistd::getppid() != ppid {
+							::std::process::exit(0);
+						}
+						thread::sleep(Duration::from_secs(10));
+					}
+				});
+
+
 				// we overload the meaning of file_in / file_out for parent and child here, which is
 				// not nice but might enable reuse of some methods
 				Sandcrust {

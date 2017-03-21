@@ -123,9 +123,4 @@ mod arg_parse_global {
 		let mut b = 12;
 		by_mut_reference_recursive(&mut a, &mut b);
 	}
-
-	#[test]
-	fn kill_it() {
-		sandcrust_terminate();
-	}
 }
