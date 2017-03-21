@@ -12,6 +12,12 @@ extern crate serde_derive;
 #[macro_use]
 extern crate lazy_static;
 
+// hook into terminate signal
+#[cfg(feature = "catch_signals")]
+extern crate chan_signal;
+#[cfg(feature = "catch_signals")]
+extern crate chan;
+
 use std::os::unix::io::FromRawFd;
 use std::os::unix::io::AsRawFd;
 
@@ -80,6 +86,12 @@ impl Sandcrust {
 		#[allow(unused_mut)]
 		let mut sandcrust = match ::nix::unistd::fork() {
 			Ok(::nix::unistd::ForkResult::Parent { child, .. }) => {
+				// install signal handler for SIGINT and SIGTERM (feature enabled by default
+				#[cfg(feature = "catch_signals")]
+				{
+				let signal = ::chan_signal::notify(&[::chan_signal::Signal::INT, ::chan_signal::Signal::TERM]);
+				::std::thread::spawn(move | | handle_signal(signal));
+				}
 				Sandcrust {
 					file_in: unsafe { ::std::fs::File::from_raw_fd(parent_cmd_send) },
 					file_out: unsafe { ::std::fs::File::from_raw_fd(parent_result_receive) },
@@ -144,11 +156,12 @@ impl Sandcrust {
 
 
 	/// waits for process with child pid
-	pub fn join_child(&self) {
+	pub fn join_child(&mut self) {
 		match nix::sys::wait::waitpid(self.child, None) {
 			Ok(_) => {}
 			Err(e) => println!("sandcrust waitpid() failed with error {}", e),
 		}
+		self.child = 0;
 	}
 
 
@@ -184,6 +197,7 @@ impl Sandcrust {
 	pub fn fork(&self) -> std::result::Result<SandcrustForkResult, ::nix::Error> {
 		nix::unistd::fork()
 	}
+
 }
 
 
@@ -632,4 +646,16 @@ pub fn sandcrust_init() {
 pub fn sandcrust_terminate() {
 	let mut sandcrust = SANDCRUST.lock().unwrap();
 	sandcrust.terminate_child();
+}
+
+
+/// handle SIGINT and SIGTERM
+#[cfg(feature = "catch_signals")]
+fn handle_signal(signal: ::chan::Receiver<::chan_signal::Signal>) {
+	signal.recv().unwrap();
+	let mut sandcrust = SANDCRUST.lock().unwrap();
+	if sandcrust.child != 0 {
+		sandcrust.terminate_child();
+	}
+	std::process::exit(0);
 }

@@ -11,6 +11,11 @@ path = "src/lib.rs"
 name = "sandstorm"
 path = "src/sandstorm.rs"
 
+[features]
+# by default, catch signals
+default = [ "catch_signals" ]
+catch_signals = [ ]
+
 [dependencies]
 nix = "*"
 libc = "*"
@@ -20,3 +25,5 @@ rustc-serialize = "*"
 lazy_static = "*"
 serde_derive = "*"
 serde = "*"
+chan-signal = "*"
+chan = "*"

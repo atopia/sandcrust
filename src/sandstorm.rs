@@ -1,6 +1,9 @@
 #[macro_use]
 extern crate sandcrust;
 
+use std::thread;
+use std::time::Duration;
+
 use sandcrust::*;
 
 sandbox!{
@@ -50,5 +53,10 @@ fn main() {
 	let local_ret = base_ret();
 	assert_eq!(local_ret, 23);
 	empty();
+
+	println!("Running work for 5 seconds.");
+	println!("Can you send a signal quickly enough?");
+	thread::sleep(Duration::from_secs(5));
+
 	sandcrust_terminate();
 }
