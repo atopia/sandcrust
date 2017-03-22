@@ -497,7 +497,9 @@ macro_rules! sandcrust_global_create_wrapper {
 		// expense of possible function name collisions.
 		impl $f for $crate::SandcrustWrapper {
 			fn $f(sandcrust: &mut $crate::Sandcrust) {
-				//println!("look I got magic going!: {}", ::nix::unistd::getpid());
+				// get updated mutable global variables, if any
+				sandcrust_pull_global(sandcrust);
+
 				sandcrust_pull_function_args!(sandcrust, $($x)*);
 				sandcrust_strip_types!(sandcrust_run_func, $has_retval, sandcrust, $f($($x)*));
 			}
@@ -523,9 +525,6 @@ macro_rules! sandcrust_global_create_function {
 					// child loop
 					sandcrust.initialize_child();
 
-					// parent mode, potentially freshly initialized
-					//println!("parent mode: {}", ::nix::unistd::getpid());
-
 					// function pointer to newly created method...
 					let func: fn(&mut $crate::Sandcrust) = $crate::SandcrustWrapper::$f;
 					// ... sent as u64 because this will be serializable
@@ -537,6 +536,8 @@ macro_rules! sandcrust_global_create_function {
 						let func_int: u64 = ::std::mem::transmute(func);
 						sandcrust.put_var_in_fifo(&func_int);
 					}
+					// update any mutable global variables in the child
+					sandcrust_push_global(&mut sandcrust);
 					sandcrust_push_function_args!(sandcrust, $($x)*);
 					sandcrust_restore_changed_vars_global!(sandcrust, $($x)*);
 					sandcrust_collect_ret!($has_retval, $rettype, sandcrust)
@@ -687,4 +688,55 @@ pub fn sandcrust_init() {
 pub fn sandcrust_terminate() {
 	let mut sandcrust = SANDCRUST.lock().unwrap();
 	sandcrust.terminate_child();
+}
+
+
+/// update mutable global variables
+///
+/// The macro takes an extern block of static mut variables and generates functions that push/pull
+/// updates of mutable global variables and shadow the stub function below.
+/// These functions are always called independed from use of the macro (hence the stubs).
+#[macro_export]
+macro_rules! sandcrust_wrap_global {
+	(#[$link_flag:meta] extern { $(static mut $name:ident: $typo:ty;)+ }) => {
+		// re-gengerate the extern block
+		#[$link_flag]
+		extern {
+			$(
+			static mut $name: $typo;
+			)+
+		}
+
+		fn sandcrust_push_global(sandcrust: &mut $crate::Sandcrust) {
+			unsafe {
+				$(
+					sandcrust.put_var_in_fifo(&$name);
+				)+
+			}
+		}
+
+		fn sandcrust_pull_global(sandcrust: &mut $crate::Sandcrust) {
+			$(
+				unsafe{
+					$name = sandcrust.restore_var_from_fifo();
+				}
+			)+
+		}
+	}
+}
+
+
+// Stub function that is overlayed in the sandcrust_wrap_global macro (if used)
+#[doc(hidden)]
+#[inline]
+#[allow(unused_variables)]
+pub fn sandcrust_pull_global(sandcrust: &mut Sandcrust) {
+}
+
+
+// Stub function that is overlayed in the sandcrust_wrap_global macro (if used)
+#[doc(hidden)]
+#[inline]
+#[allow(unused_variables)]
+pub fn sandcrust_push_global(sandcrust: &mut Sandcrust) {
 }
