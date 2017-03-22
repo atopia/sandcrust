@@ -1,3 +1,5 @@
+#![allow(unused_assignments)]
+
 #[macro_use]
 extern crate sandcrust;
 

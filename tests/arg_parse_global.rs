@@ -1,3 +1,5 @@
+#![allow(unused_mut)]
+
 #[macro_use]
 extern crate sandcrust;
 
