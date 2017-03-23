@@ -1,3 +1,9 @@
+//! Sandcrust (**Sand**boxing **C** in **Rust**) is a library that automatically executes wrapped
+//! functions in a sandboxed process.
+//!
+//! This is a highly experimental prototype, **do not use in production!**
+#![warn(missing_docs, missing_debug_implementations, trivial_casts, trivial_numeric_casts, unstable_features, unused_import_braces, unused_qualifications)]
+
 extern crate nix;
 
 extern crate bincode;
@@ -26,15 +32,19 @@ pub type SandcrustPid = ::nix::libc::pid_t;
 pub use ::nix::unistd::ForkResult as SandcrustForkResult;
 
 
-// fake datatype to implement wrappers on, see below
+// fake data type to implement wrappers on, see below
 #[doc(hidden)]
+#[derive(Debug)]
 pub struct SandcrustWrapper;
 
+#[doc(hidden)]
 pub use serde_derive::*;
+
 pub use serde::{Serialize, Deserialize};
 
 // main data structure for sandcrust
 #[doc(hidden)]
+#[derive(Debug)]
 pub struct Sandcrust {
 	file_in: ::std::fs::File,
 	file_out: ::std::fs::File,
@@ -45,21 +55,22 @@ pub struct Sandcrust {
 // lazily initialized global Sandcrust object (via Deref magic) for global sandbox
 lazy_static! {
 	#[doc(hidden)]
+	#[derive(Debug)]
 	pub static ref SANDCRUST: ::std::sync::Arc<::std::sync::Mutex<Sandcrust>> = {
 		std::sync::Arc::new(std::sync::Mutex::new(Sandcrust::fork_new()))
 	};
 }
 
 
-// necessary, because once the child is initialized, we need a lightweight, non-locking check to
-// run the original function
-// changing this is protected by SANDCRUST's mutex
+// Necessary, because once the child is initialized, we need a lightweight, non-locking check to
+// run the original function.
+// Changing this is protected by SANDCRUST's mutex.
 #[doc(hidden)]
 pub static mut SANDCRUST_INITIALIZED_CHILD: bool = false;
 
 
 impl Sandcrust {
-	/// new Sandcrust object for one time use
+	/// New Sandcrust object for one time use.
 	pub fn new() -> Sandcrust {
 		let (fd_out, fd_in) = nix::unistd::pipe().unwrap();
 		Sandcrust {
@@ -69,18 +80,17 @@ impl Sandcrust {
 		}
 	}
 
-	/// new Sandcrust object for global use
+	/// New Sandcrust object for global use.
 	///
-	/// creates a pipe of pairs, forks and returns Sandcrust objects with the appropriate pipe
-	/// ends bound to file_in and file_out
+	/// Creates a pipe of pairs, forks and returns Sandcrust objects with the appropriate pipe
+	/// ends bound to file_in and file_out.
 	pub fn fork_new() -> Sandcrust {
 		let (child_cmd_receive, parent_cmd_send) = ::nix::unistd::pipe().unwrap();
 		let (parent_result_receive, child_result_send) = ::nix::unistd::pipe().unwrap();
 
 		// get pid to check for parent termination
 		let ppid = ::nix::unistd::getpid();
-		#[allow(unused_mut)]
-		let mut sandcrust = match ::nix::unistd::fork() {
+		let sandcrust = match ::nix::unistd::fork() {
 			Ok(::nix::unistd::ForkResult::Parent { child, .. }) => {
 				Sandcrust {
 					file_in: unsafe { ::std::fs::File::from_raw_fd(parent_cmd_send) },
@@ -129,10 +139,10 @@ impl Sandcrust {
 		sandcrust
 	}
 
-	/// check if the process is unintialized child process and run child loop
+	/// Check if the process is unintialized child process and run child loop.
 	///
-	/// as noted above, modifications to static mut SANDCRUST_INITIALIZED_CHILD are protected by the mutex
-	/// held on the global Sandcrust object
+	/// As noted above, modifications to static mut SANDCRUST_INITIALIZED_CHILD are protected by the mutex
+	/// held on the global Sandcrust object.
 	pub fn initialize_child(&mut self) {
 		if !unsafe { SANDCRUST_INITIALIZED_CHILD } && self.child == -1 {
 			// Sandbox was terminated, respawn if feature enabled, else fail
@@ -148,7 +158,7 @@ impl Sandcrust {
 	}
 
 
-	/// wrapper to set up an external sandbox
+	/// Wrapper to set up an external sandbox.
 	pub fn setup_sandbox(&self) {
 		let file_in = self.file_in.as_raw_fd();
 		let file_out = self.file_out.as_raw_fd();
@@ -156,10 +166,10 @@ impl Sandcrust {
 	}
 
 
-	/// client side loop
+	/// Client side loop.
 	///
-	/// take unsigned number from comand pipe, convert to function pointer and run it
-	/// if command number is 0, exit the child process
+	/// Take unsigned number from comand pipe, convert to function pointer and run it.
+	/// If command number is 0, exit the child process.
 	fn run_child_loop(&mut self) {
 		self.setup_sandbox();
 		loop {
@@ -179,7 +189,7 @@ impl Sandcrust {
 	}
 
 
-	/// waits for process with child pid
+	/// Waits for process with child pid.
 	pub fn join_child(&mut self) {
 		match nix::sys::wait::waitpid(self.child, None) {
 			Ok(_) => { self.child = -1 }
@@ -188,7 +198,7 @@ impl Sandcrust {
 	}
 
 
-	/// put variable in pipe
+	/// Put variable in pipe.
 	pub fn put_var_in_fifo<T: ::serde::Serialize>(&mut self, var: T) {
 		::bincode::serialize_into(&mut self.file_in,
 												&var,
@@ -197,27 +207,28 @@ impl Sandcrust {
 	}
 
 
-	/// restore variable from pipe
+	/// Restore variable from pipe.
 	pub fn restore_var_from_fifo<T: ::serde::Deserialize>(&mut self) -> T {
 		::bincode::deserialize_from(&mut self.file_out, ::bincode::Infinite)
 			.unwrap()
 	}
 
 
-	/// send '0' command pointer to child loop, causing child to shut down
+	/// Send '0' command pointer to child loop, causing child to shut down, and collect the child's
+    /// exit status.
 	pub fn terminate_child(&mut self) {
 		self.put_var_in_fifo(0u64);
 		self.join_child();
 	}
 
 
-	/// set child attribute to acquired value
+	/// Set child attribute to acquired value.
 	pub fn set_child(&mut self, child: SandcrustPid) {
 		self.child = child;
 	}
 
 
-	/// respawn sandcrust, setting up new Sandbox
+	/// Respawn sandcrust, setting up new Sandbox.
 	fn respawn(&mut self) {
 		println!("re-initializing sandcrust...");
 		let new_sandcrust = Sandcrust::fork_new();
@@ -226,14 +237,14 @@ impl Sandcrust {
 		self.child = new_sandcrust.child;
 	}
 
-	/// wrap fork for use in one-time sandbox macro to avoid exporting nix
-	pub fn fork(&self) -> std::result::Result<SandcrustForkResult, ::nix::Error> {
+	/// Wrap fork for use in one-time sandbox macro to avoid exporting nix.
+	pub fn fork(&self) -> Result<SandcrustForkResult, ::nix::Error> {
 		nix::unistd::fork()
 	}
 }
 
 
-/// store potentially changed vars into the pipe from child to parent
+/// Store potentially changed vars into the pipe from child to parent.
 #[doc(hidden)]
 #[macro_export]
 macro_rules! sandcrust_store_changed_vars {
@@ -259,7 +270,7 @@ macro_rules! sandcrust_store_changed_vars {
 }
 
 
-/// restore potentially changed vars from pipe in the parent after IPC call
+/// Restore potentially changed vars from pipe in the parent after IPC call.
 #[doc(hidden)]
 #[macro_export]
 macro_rules! sandcrust_restore_changed_vars {
@@ -282,10 +293,10 @@ macro_rules! sandcrust_restore_changed_vars {
 }
 
 
-/// restore potentially changed vars from pipe in the parent after IPC call
+/// Restore potentially changed vars from pipe in the parent after IPC call.
 ///
-/// global version - this would be a merge candidate with sandcrust_restore_changed_vars,
-/// but inside the function &mut vars need to be dereferenced
+/// Global version - this would be a merge candidate with sandcrust_restore_changed_vars,
+/// but inside the function &mut vars need to be dereferenced.
 #[doc(hidden)]
 #[macro_export]
 macro_rules! sandcrust_restore_changed_vars_global {
@@ -312,7 +323,7 @@ macro_rules! sandcrust_restore_changed_vars_global {
 }
 
 
-/// push function arguments to global client in case they have changed since forking
+/// Push function arguments to global client in case they have changed since forking.
 #[doc(hidden)]
 #[macro_export]
 macro_rules! sandcrust_push_function_args {
@@ -342,7 +353,7 @@ macro_rules! sandcrust_push_function_args {
 }
 
 
-/// pull function arguments in global client
+/// Pull function arguments in global client.
 #[doc(hidden)]
 #[macro_export]
 macro_rules! sandcrust_pull_function_args {
@@ -378,7 +389,7 @@ macro_rules! sandcrust_pull_function_args {
 }
 
 
-/// run function, gathering return value if available
+/// Run function, gathering return value if available.
 #[doc(hidden)]
 #[macro_export]
 macro_rules! sandcrust_run_func {
@@ -394,7 +405,7 @@ macro_rules! sandcrust_run_func {
 }
 
 
-/// collect return value in parent, if available
+/// Collect return value in parent, if available.
 #[doc(hidden)]
 #[macro_export]
 macro_rules! sandcrust_collect_ret {
@@ -414,12 +425,12 @@ macro_rules! sandcrust_collect_ret {
 }
 
 
-/// strip argument types from function definition for calling the function
+/// Strip argument types from function definition for calling the function.
 ///
-/// matching hell, but there is nothing else to do because Push Down Accumulation is a necessity
-/// (see https://danielkeep.github.io/tlborm/book/pat-push-down-accumulation.html#incremental-tt-munchers)
-/// unfortunately, using $head:expr seems to match a single macro defition, but fails to expand in a
-///  subsequent macro
+/// Matching hell, but there is nothing else to do because Push Down Accumulation is a necessity
+/// (see https://danielkeep.github.io/tlborm/book/pat-push-down-accumulation.html#incremental-tt-munchers).
+/// Unfortunately, using $body:expr seems to match a single macro defition, but fails to expand in a
+/// subsequent macro.
 #[doc(hidden)]
 #[macro_export]
 macro_rules! sandcrust_strip_types {
@@ -448,7 +459,7 @@ macro_rules! sandcrust_strip_types {
 }
 
 
-/// internal abstraction for single run with and without return value
+/// Internal abstraction for single run with and without return value.
 #[doc(hidden)]
 #[macro_export]
 macro_rules! sandbox_internal {
@@ -471,7 +482,7 @@ macro_rules! sandbox_internal {
 }
 
 
-/// create global SandcrustWrapper Trait to update client arguments and run the function
+/// Create global SandcrustWrapper Trait to update client arguments and run the function.
 #[doc(hidden)]
 #[macro_export]
 macro_rules! sandcrust_global_create_wrapper {
@@ -508,9 +519,9 @@ macro_rules! sandcrust_global_create_wrapper {
 }
 
 
-/// create global funtion definition in place of the original
+/// Create global funtion definition in place of the original.
 ///
-/// possibly called by PARENT (and child):
+/// Possibly called by PARENT (and child):
 /// FIXME: am besten gleich: je nach direkt-c oder nicht die in Ruhe lassen und nen anderen wrapper nehmen
 #[doc(hidden)]
 #[macro_export]
@@ -546,12 +557,12 @@ macro_rules! sandcrust_global_create_function {
 }
 
 
-/// wrap a function
+/// Wrap a function.
 ///
 /// # This macro can be used in two major ways:
 ///
-/// * wrap a function invocation with return value once
-/// * wrap function definitions, thereby creating a persistent sandboxed child process that all invocations of the wrapped functions are executed in
+/// * Wrap a function invocation with return value once.
+/// * Wrap function definitions, thereby creating a persistent sandboxed child process that all invocations of the wrapped functions are executed in.
 ///
 /// # Wrap a function invocation with return value once
 /// For this to work, it is generally necessary to specify the return type explicitly as the
@@ -630,11 +641,12 @@ macro_rules! sandbox {
 }
 
 
-/// wrap a function without a return value once
+/// Wrap a function without a return value once.
 ///
-/// unfortunately this is a necessary distinction because Rust cannot distinguish between functions
-/// with and without return value from the function call
+/// Unfortunately this is a necessary distinction because Rust cannot distinguish between functions
+/// with and without return value from the function call.
 ///
+/// # Examples
 /// ```
 /// #[macro_use]
 /// extern crate sandcrust;
@@ -662,6 +674,7 @@ macro_rules! sandbox_no_ret {
 /// This is unnecessary during normal use, but useful to set up the sandboxing mechanism at a
 /// defined point in program execution, e.g. before loading senstive data into the address space.
 ///
+/// # Examples
 /// ```no_run
 /// use sandcrust::*;
 ///
@@ -675,11 +688,12 @@ pub fn sandcrust_init() {
 }
 
 
-/// terminate the global child
+/// Terminate the global child.
 ///
 /// **Attention** calls to sandboxed functions after child termination will panic if the
 /// "auto_respawn" compile time feature is not enabled.
 ///
+/// # Examples
 /// ```no_run
 /// use sandcrust::*;
 ///
@@ -691,11 +705,27 @@ pub fn sandcrust_terminate() {
 }
 
 
-/// update mutable global variables
+/// Update mutable global variables.
 ///
 /// The macro takes an extern block of static mut variables and generates functions that push/pull
 /// updates of mutable global variables and shadow the stub function below.
 /// These functions are always called independed from use of the macro (hence the stubs).
+///
+/// # Examples
+/// ```no_run
+/// #[macro_use]
+/// extern crate sandcrust;
+///
+///
+/// sandcrust_wrap_global!{
+/// 	#[link(name = "linkname")]
+/// 	extern {
+/// 		static mut variable1: i32;
+/// 		static mut variable2: u8;
+/// 	}
+/// }
+/// # fn main() { }
+/// ```
 #[macro_export]
 macro_rules! sandcrust_wrap_global {
 	(#[$link_flag:meta] extern { $(static mut $name:ident: $typo:ty;)+ }) => {
