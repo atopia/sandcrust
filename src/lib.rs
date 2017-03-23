@@ -2,7 +2,7 @@
 //! functions in a sandboxed process.
 //!
 //! This is a highly experimental prototype, **do not use in production!**
-#![warn(missing_docs, missing_debug_implementations, trivial_casts, trivial_numeric_casts, unstable_features, unused_import_braces, unused_qualifications)]
+#![warn(missing_docs, missing_debug_implementations, trivial_casts, trivial_numeric_casts, unstable_features, unused_extern_crates, unused_results, unused_import_braces, unused_qualifications, variant-size-differences)]
 
 extern crate nix;
 
@@ -106,7 +106,9 @@ impl Sandcrust {
 				#[cfg(target_os="linux")]
 				{
 					unsafe {
-						::nix::libc::prctl(::nix::libc::PR_SET_PDEATHSIG, ::nix::libc::SIGHUP);
+						if 0 != ::nix::libc::prctl(::nix::libc::PR_SET_PDEATHSIG, ::nix::libc::SIGHUP) {
+							panic!("Setting prctl() failed!");
+						}
 					}
 					if ::nix::unistd::getppid() != ppid {
 						::std::process::exit(0);
@@ -498,7 +500,8 @@ macro_rules! sandcrust_global_create_wrapper {
 		//	a simple $f_wrapped won't do in any way: https://github.com/rust-lang/rust/issues/12249
 		#[allow(non_camel_case_types)]
 		trait $f {
-			#[allow(non_snake_case)]
+			// This doesn't work unfortunately...
+			// #[allow(non_snake_case)]
 			fn $f(sandcrust: &mut $crate::Sandcrust);
 		}
 
