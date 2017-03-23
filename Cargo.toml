@@ -4,7 +4,9 @@ version = "0.1.0"
 authors = ["Benjamin Lamowski <benjamin@lamowski.net>"]
 #repository = ""
 #homepage = ""
-license = "MIT"
+#documentation =
+keywords = [ "componentization", "compartmentalization", "sandbox", "sandboxing", "C"]
+license = "MIT/Apache-2.0"
 readme = "README.md"
 description = "Automatically execute wrapped functions in a sandboxed process."
 
