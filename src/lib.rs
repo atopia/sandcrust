@@ -92,6 +92,8 @@ impl Sandcrust {
 		let ppid = ::nix::unistd::getpid();
 		let sandcrust = match ::nix::unistd::fork() {
 			Ok(::nix::unistd::ForkResult::Parent { child, .. }) => {
+				::nix::unistd::close(child_cmd_receive).expect("sandcrust: failed to close unused child read FD");
+				::nix::unistd::close(child_result_send).expect("sandcrust: failed to close unused child write FD");
 				Sandcrust {
 					file_in: unsafe { ::std::fs::File::from_raw_fd(parent_cmd_send) },
 					file_out: unsafe { ::std::fs::File::from_raw_fd(parent_result_receive) },
@@ -130,6 +132,8 @@ impl Sandcrust {
 
 				// we overload the meaning of file_in / file_out for parent and child here, which is
 				// not nice but might enable reuse of some methods
+				::nix::unistd::close(parent_cmd_send).expect("sandcrust: failed to close unused parent write FD");
+				::nix::unistd::close(parent_result_receive).expect("sandcrust: failed to close unused parent read FD");
 				Sandcrust {
 					file_in: unsafe { ::std::fs::File::from_raw_fd(child_result_send) },
 					file_out: unsafe { ::std::fs::File::from_raw_fd(child_cmd_receive) },
@@ -232,7 +236,7 @@ impl Sandcrust {
 
 	/// Respawn sandcrust, setting up new Sandbox.
 	fn respawn(&mut self) {
-		println!("re-initializing sandcrust...");
+		println!("sandcrust: re-initializing...");
 		let new_sandcrust = Sandcrust::fork_new();
 		self.file_in = new_sandcrust.file_in;
 		self.file_out = new_sandcrust.file_out;
