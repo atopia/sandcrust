@@ -72,7 +72,7 @@ pub static mut SANDCRUST_INITIALIZED_CHILD: bool = false;
 impl Sandcrust {
 	/// New Sandcrust object for one time use.
 	pub fn new() -> Sandcrust {
-		let (fd_out, fd_in) = nix::unistd::pipe().unwrap();
+		let (fd_out, fd_in) = nix::unistd::pipe().expect("sandcrust: failed to set up pipe");
 		Sandcrust {
 			file_in: unsafe { ::std::fs::File::from_raw_fd(fd_in) },
 			file_out: unsafe { ::std::fs::File::from_raw_fd(fd_out) },
@@ -85,8 +85,8 @@ impl Sandcrust {
 	/// Creates a pipe of pairs, forks and returns Sandcrust objects with the appropriate pipe
 	/// ends bound to file_in and file_out.
 	pub fn fork_new() -> Sandcrust {
-		let (child_cmd_receive, parent_cmd_send) = ::nix::unistd::pipe().unwrap();
-		let (parent_result_receive, child_result_send) = ::nix::unistd::pipe().unwrap();
+		let (child_cmd_receive, parent_cmd_send) = ::nix::unistd::pipe().expect("sandcrust: failed to set up pipe");
+		let (parent_result_receive, child_result_send) = ::nix::unistd::pipe().expect("sandcrust: failed to set up pipe");
 
 		// get pid to check for parent termination
 		let ppid = ::nix::unistd::getpid();
@@ -205,14 +205,14 @@ impl Sandcrust {
 		::bincode::serialize_into(&mut self.file_in,
 												&var,
 												::bincode::Infinite)
-			.unwrap();
+												.expect("sandcrust: failed to put variable in fifo");
 	}
 
 
 	/// Restore variable from pipe.
 	pub fn restore_var_from_fifo<T: ::serde::Deserialize>(&mut self) -> T {
 		::bincode::deserialize_from(&mut self.file_out, ::bincode::Infinite)
-			.unwrap()
+											.expect("sandcrust: failed to read variable from fifo")
 	}
 
 
@@ -534,7 +534,7 @@ macro_rules! sandcrust_global_create_function {
 			if unsafe{SANDCRUST_INITIALIZED_CHILD} {
 				$body
 			} else {
-					let mut sandcrust = SANDCRUST.lock().unwrap();
+					let mut sandcrust = SANDCRUST.lock().expect("sandcrust: failed to lock mutex on global object");
 					// potenially completely unintialized, if we're the child on first access, run
 					// child loop
 					sandcrust.initialize_child();
@@ -684,7 +684,7 @@ macro_rules! sandbox_no_ret {
 /// sandcrust_init();
 /// ```
 pub fn sandcrust_init() {
-	let mut sandcrust = SANDCRUST.lock().unwrap();
+	let mut sandcrust = SANDCRUST.lock().expect("sandcrust: init: failed to lock mutex on global object");
 	if sandcrust.child == -1 {
 		sandcrust.respawn();
 	}
@@ -703,7 +703,7 @@ pub fn sandcrust_init() {
 /// sandcrust_terminate();
 /// ```
 pub fn sandcrust_terminate() {
-	let mut sandcrust = SANDCRUST.lock().unwrap();
+	let mut sandcrust = SANDCRUST.lock().expect("sandcrust: terminate: failed to lock mutex on global object");
 	sandcrust.terminate_child();
 }
 
