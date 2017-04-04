@@ -199,7 +199,7 @@ impl Sandcrust {
 	pub fn join_child(&mut self) {
 		match nix::sys::wait::waitpid(self.child, None) {
 			Ok(_) => { self.child = -1 }
-			Err(e) => println!("sandcrust waitpid() failed with error {}", e),
+			Err(e) => panic!("sandcrust waitpid() failed with error {}", e),
 		}
 	}
 
@@ -236,7 +236,6 @@ impl Sandcrust {
 
 	/// Respawn sandcrust, setting up new Sandbox.
 	fn respawn(&mut self) {
-		println!("sandcrust: re-initializing...");
 		let new_sandcrust = Sandcrust::fork_new();
 		self.file_in = new_sandcrust.file_in;
 		self.file_out = new_sandcrust.file_out;
