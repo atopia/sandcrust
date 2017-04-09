@@ -59,6 +59,7 @@ pub struct Sandcrust {
 	file_out: ::std::fs::File,
 	child: SandcrustPid,
 	shm: ::memmap::Mmap,
+	shm_offset: usize,
 }
 
 // main data structure for sandcrust
@@ -101,6 +102,7 @@ impl Sandcrust {
 			file_out: unsafe { ::std::fs::File::from_raw_fd(fd_out) },
 			child: 0,
 			shm: memmap::Mmap::anonymous(SANDCRUST_SHM_SIZE, ::memmap::Protection::ReadWrite).expect("sandcrust: failed to set up SHM"),
+			shm_offset: 0,
 		};
 		#[cfg(not(feature = "shm"))]
 		let sandcrust = Sandcrust {
@@ -133,6 +135,7 @@ impl Sandcrust {
 					file_out: unsafe { ::std::fs::File::from_raw_fd(parent_result_receive) },
 					child: child,
 					shm: shm,
+					shm_offset: 0,
 				};
 				#[cfg(not(feature = "shm"))]
 				let sandcrust = Sandcrust {
@@ -183,6 +186,7 @@ impl Sandcrust {
 					file_out: unsafe { ::std::fs::File::from_raw_fd(child_cmd_receive) },
 					child: 0,
 					shm: shm,
+					shm_offset: 0,
 				};
 				#[cfg(not(feature = "shm"))]
 				let sandcrust = Sandcrust {
@@ -253,6 +257,53 @@ impl Sandcrust {
 			Ok(_) => { self.child = -1 }
 			Err(e) => panic!("sandcrust waitpid() failed with error {}", e),
 		}
+	}
+
+
+	/// Reset SHM offset.
+	#[cfg(feature = "shm")]
+	pub fn reset_shm_offset(&mut self) {
+		self.shm_offset = 0;
+	}
+
+
+	/// Put variable in SHM and adjust working offset.
+	#[cfg(feature = "shm")]
+	pub fn put_var_in_shm<T: ::serde::Serialize>(&mut self, var: T) {
+		let remaining_mem: u64 = (SANDCRUST_SHM_SIZE - self.shm_offset) as u64;
+
+		match ::bincode::serialized_size_bounded(&var, remaining_mem) {
+			Some(size) => {
+				let mut mem = unsafe { self.shm.as_mut_slice() };
+				let mut window = &mut mem[self.shm_offset..];
+				::bincode::serialize_into(& mut window,
+											&var,
+											::bincode::Bounded(remaining_mem))
+											.expect("sandcrust: failed to put variable in SHM");
+				self.shm_offset -= size as usize;
+			},
+			None => panic!("sandcrust: SHM out of memory!"),
+		}
+	}
+
+
+	/// Get variable from SHM and adjust working offset.
+	#[cfg(feature = "shm")]
+	pub fn restore_var_from_shm<T: ::serde::Deserialize>(&mut self) -> T {
+		let remaining_mem: u64 = (SANDCRUST_SHM_SIZE - self.shm_offset) as u64;
+		let mem = unsafe { self.shm.as_slice() };
+		let window = &mem[self.shm_offset..];
+
+		::bincode::deserialize(window).expect("sandcrust: failed to read variable from fifo")
+	}
+
+
+	/// FIXME: ugly clude b/c otherwise the compiler won't know that var (being type X) is
+	/// serializeable
+	/// Either find some trait magic to shut it up, or combine in macro
+	#[cfg(feature = "shm")]
+	pub fn update_shm_offset<T: ::serde::Serialize>(&mut self, var: T) {
+		self.shm_offset += ::bincode::serialized_size(&var) as usize;
 	}
 
 
