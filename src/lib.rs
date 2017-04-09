@@ -236,9 +236,9 @@ impl Sandcrust {
 		self.setup_sandbox();
 		loop {
 			#[cfg(target_pointer_width = "32")]
-			let func_int: u32 = self.restore_var_from_fifo();
+			let func_int: u32 = self.restore_var();
 			#[cfg(target_pointer_width = "64")]
-			let func_int: u64 = self.restore_var_from_fifo();
+			let func_int: u64 = self.restore_var();
 			if func_int == 0 {
 				::std::process::exit(0);
 			} else {
@@ -308,7 +308,7 @@ impl Sandcrust {
 
 
 	/// Put variable in pipe.
-	pub fn put_var_in_fifo<T: ::serde::Serialize>(&mut self, var: T) {
+	pub fn put_var<T: ::serde::Serialize>(&mut self, var: T) {
 		::bincode::serialize_into(&mut self.file_in,
 												&var,
 												::bincode::Infinite)
@@ -317,7 +317,7 @@ impl Sandcrust {
 
 
 	/// Restore variable from pipe.
-	pub fn restore_var_from_fifo<T: ::serde::Deserialize>(&mut self) -> T {
+	pub fn restore_var<T: ::serde::Deserialize>(&mut self) -> T {
 		::bincode::deserialize_from(&mut self.file_out, ::bincode::Infinite)
 											.expect("sandcrust: failed to read variable from fifo")
 	}
@@ -326,7 +326,7 @@ impl Sandcrust {
 	/// Send '0' command pointer to child loop, causing child to shut down, and collect the child's
     /// exit status.
 	pub fn terminate_child(&mut self) {
-		self.put_var_in_fifo(0u64);
+		self.put_var(0u64);
 		self.join_child();
 	}
 
@@ -356,9 +356,9 @@ impl Sandcrust {
 #[doc(hidden)]
 #[macro_export]
 macro_rules! sandcrust_store_changed_vars {
-	($sandcrust:ident, &mut $head:ident) => { $sandcrust.put_var_in_fifo($head); };
+	($sandcrust:ident, &mut $head:ident) => { $sandcrust.put_var($head); };
 	($sandcrust:ident, &mut $head:ident, $($tail:tt)*) => {
-		$sandcrust.put_var_in_fifo($head);
+		$sandcrust.put_var($head);
 		sandcrust_store_changed_vars!($sandcrust, $($tail)*);
 	};
 	($sandcrust:ident, &$head:ident) => { };
@@ -384,10 +384,10 @@ macro_rules! sandcrust_store_changed_vars {
 macro_rules! sandcrust_restore_changed_vars {
 	// only restore mut types
 	($sandcrust:ident, &mut $head:ident) => {
-		$head = $sandcrust.restore_var_from_fifo();
+		$head = $sandcrust.restore_var();
 	};
 	($sandcrust:ident, &mut $head:ident, $($tail:tt)+) => {
-		$head = $sandcrust.restore_var_from_fifo();
+		$head = $sandcrust.restore_var();
 		sandcrust_restore_changed_vars!($sandcrust, $($tail)+);
 	};
 	($sandcrust:ident, &$head:ident) => { };
@@ -409,10 +409,10 @@ macro_rules! sandcrust_restore_changed_vars {
 #[macro_export]
 macro_rules! sandcrust_restore_changed_vars_global {
 	($sandcrust:ident, $head:ident : &mut $typo:ty) => {
-		*$head = $sandcrust.restore_var_from_fifo();
+		*$head = $sandcrust.restore_var();
 	};
 	($sandcrust:ident, $head:ident : &mut $typo:ty, $($tail:tt)+) => {
-		*$head = $sandcrust.restore_var_from_fifo();
+		*$head = $sandcrust.restore_var();
 		sandcrust_restore_changed_vars_global!($sandcrust, $($tail)+);
 	};
 	($sandcrust:ident, $head:ident : &$typo:ty) => { };
@@ -435,26 +435,26 @@ macro_rules! sandcrust_restore_changed_vars_global {
 #[doc(hidden)]
 #[macro_export]
 macro_rules! sandcrust_push_function_args {
-	($sandcrust:ident, $head:ident : &mut $typo:ty) => { $sandcrust.put_var_in_fifo(&*$head); };
+	($sandcrust:ident, $head:ident : &mut $typo:ty) => { $sandcrust.put_var(&*$head); };
 	($sandcrust:ident, $head:ident : &mut $typo:ty, $($tail:tt)+) => {
-		$sandcrust.put_var_in_fifo(&*$head);
+		$sandcrust.put_var(&*$head);
 		sandcrust_push_function_args!($sandcrust, $($tail)+);
 	};
-	($sandcrust:ident, $head:ident : &$typo:ty) => { $sandcrust.put_var_in_fifo($head); };
+	($sandcrust:ident, $head:ident : &$typo:ty) => { $sandcrust.put_var($head); };
 	($sandcrust:ident, $head:ident : &$typo:ty, $($tail:tt)+) => {
-		$sandcrust.put_var_in_fifo($head);
+		$sandcrust.put_var($head);
 		sandcrust_push_function_args!($sandcrust, $($tail)+);
 	};
 	($sandcrust:ident, $head:ident : $typo:ty, $($tail:tt)+) => {
-		$sandcrust.put_var_in_fifo($head);
+		$sandcrust.put_var($head);
 		sandcrust_push_function_args!($sandcrust, $($tail)+);
 	};
 	($sandcrust:ident, $head:ident : $typo:ty ) => {
-		$sandcrust.put_var_in_fifo($head);
+		$sandcrust.put_var($head);
 	};
-	($sandcrust:ident, mut $head:ident : $typo:ty ) => { $sandcrust.put_var_in_fifo($head); };
+	($sandcrust:ident, mut $head:ident : $typo:ty ) => { $sandcrust.put_var($head); };
 	($sandcrust:ident, mut $head:ident : $typo:ty, $($tail:tt)+) => {
-		$sandcrust.put_var_in_fifo($head);
+		$sandcrust.put_var($head);
 		sandcrust_push_function_args!($sandcrust, $($tail)+);
 	};
 	($sandcrust:ident, ) => {};
@@ -466,31 +466,31 @@ macro_rules! sandcrust_push_function_args {
 #[macro_export]
 macro_rules! sandcrust_pull_function_args {
 	($sandcrust:ident, $head:ident : &mut $typo:ty) => {
-		let mut $head: $typo = $sandcrust.restore_var_from_fifo();
+		let mut $head: $typo = $sandcrust.restore_var();
 	};
 	($sandcrust:ident, $head:ident : &mut $typo:ty, $($tail:tt)+) => {
-		let mut $head: $typo = $sandcrust.restore_var_from_fifo();
+		let mut $head: $typo = $sandcrust.restore_var();
 		sandcrust_pull_function_args!($sandcrust, $($tail)+);
 	};
 	($sandcrust:ident, $head:ident : &$typo:ty) => {
-		let $head: $typo = $sandcrust.restore_var_from_fifo();
+		let $head: $typo = $sandcrust.restore_var();
 	};
 	($sandcrust:ident, $head:ident : &$typo:ty, $($tail:tt)+) => {
-		let $head: $typo = $sandcrust.restore_var_from_fifo();
+		let $head: $typo = $sandcrust.restore_var();
 		sandcrust_pull_function_args!($sandcrust, $($tail)+);
 	};
 	($sandcrust:ident, $head:ident : $typo:ty, $($tail:tt)+) => {
-		let $head: $typo = $sandcrust.restore_var_from_fifo();
+		let $head: $typo = $sandcrust.restore_var();
 		sandcrust_pull_function_args!($sandcrust, $($tail)+);
 	};
 	($sandcrust:ident, $head:ident : $typo:ty ) => {
-		let $head: $typo = $sandcrust.restore_var_from_fifo();
+		let $head: $typo = $sandcrust.restore_var();
 	};
 	($sandcrust:ident, mut $head:ident : $typo:ty ) => {
-		let mut $head: $typo = $sandcrust.restore_var_from_fifo();
+		let mut $head: $typo = $sandcrust.restore_var();
 	};
 	($sandcrust:ident, mut $head:ident : $typo:ty, $($tail:tt)+) => {
-		let mut $head: $typo = $sandcrust.restore_var_from_fifo();
+		let mut $head: $typo = $sandcrust.restore_var();
 		sandcrust_pull_function_args!($sandcrust, $($tail)+);
 	};
 	($sandcrust:ident, ) => {};
@@ -504,7 +504,7 @@ macro_rules! sandcrust_run_func {
 	(has_ret, $sandcrust:ident, $f:ident($($x:tt)*)) => {
 		let retval = $f($($x)*);
 		sandcrust_store_changed_vars!($sandcrust, $($x)*);
-		$sandcrust.put_var_in_fifo(&retval);
+		$sandcrust.put_var(&retval);
 	};
 	(no_ret, $sandcrust:ident, $f:ident($($x:tt)*)) => {
 		$f($($x)*);
@@ -518,12 +518,12 @@ macro_rules! sandcrust_run_func {
 #[macro_export]
 macro_rules! sandcrust_collect_ret {
 	(has_ret, $rettype:ty, $sandcrust:ident) => {{
-		let retval: $rettype = $sandcrust.restore_var_from_fifo();
+		let retval: $rettype = $sandcrust.restore_var();
 		retval
 	}};
 	(no_ret, $rettype:ty, $sandcrust:ident) => { () };
 	(has_ret, $sandcrust:ident) => {{
-		let retval = $sandcrust.restore_var_from_fifo();
+		let retval = $sandcrust.restore_var();
 		$sandcrust.join_child();
 		retval
 	}};
@@ -654,7 +654,7 @@ macro_rules! sandcrust_global_create_function {
 						let func_int: u32 = ::std::mem::transmute(func);
 						#[cfg(target_pointer_width = "64")]
 						let func_int: u64 = ::std::mem::transmute(func);
-						sandcrust.put_var_in_fifo(&func_int);
+						sandcrust.put_var(&func_int);
 					}
 					// update any mutable global variables in the child
 					sandcrust_push_global(&mut sandcrust);
@@ -853,7 +853,7 @@ macro_rules! sandcrust_wrap_global {
 		fn sandcrust_push_global(sandcrust: &mut $crate::Sandcrust) {
 			unsafe {
 				$(
-					sandcrust.put_var_in_fifo(&$name);
+					sandcrust.put_var(&$name);
 				)+
 			}
 		}
@@ -861,7 +861,7 @@ macro_rules! sandcrust_wrap_global {
 		fn sandcrust_pull_global(sandcrust: &mut $crate::Sandcrust) {
 			$(
 				unsafe{
-					$name = sandcrust.restore_var_from_fifo();
+					$name = sandcrust.restore_var();
 				}
 			)+
 		}
