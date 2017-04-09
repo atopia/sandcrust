@@ -11,6 +11,10 @@ extern crate serde;
 
 extern crate sandheap;
 
+#[cfg(feature = "shm")]
+extern crate memmap;
+
+
 #[allow(unused_imports)]
 #[macro_use]
 extern crate serde_derive;
@@ -42,14 +46,32 @@ pub use serde_derive::*;
 
 pub use serde::{Serialize, Deserialize};
 
+#[cfg(feature = "shm")]
+static SANDCRUST_SHM_SIZE: usize = 2097152;
+
+
 // main data structure for sandcrust
 #[doc(hidden)]
 #[derive(Debug)]
+#[cfg(feature = "shm")]
+pub struct Sandcrust {
+	file_in: ::std::fs::File,
+	file_out: ::std::fs::File,
+	child: SandcrustPid,
+	shm: ::memmap::Mmap,
+}
+
+// main data structure for sandcrust
+#[doc(hidden)]
+#[derive(Debug)]
+#[cfg(not(feature = "shm"))]
 pub struct Sandcrust {
 	file_in: ::std::fs::File,
 	file_out: ::std::fs::File,
 	child: SandcrustPid,
 }
+
+
 
 
 // lazily initialized global Sandcrust object (via Deref magic) for global sandbox
@@ -73,11 +95,20 @@ impl Sandcrust {
 	/// New Sandcrust object for one time use.
 	pub fn new() -> Sandcrust {
 		let (fd_out, fd_in) = nix::unistd::pipe().expect("sandcrust: failed to set up pipe");
-		Sandcrust {
+		#[cfg(feature = "shm")]
+		let sandcrust = Sandcrust {
 			file_in: unsafe { ::std::fs::File::from_raw_fd(fd_in) },
 			file_out: unsafe { ::std::fs::File::from_raw_fd(fd_out) },
 			child: 0,
-		}
+			shm: memmap::Mmap::anonymous(SANDCRUST_SHM_SIZE, ::memmap::Protection::ReadWrite).expect("sandcrust: failed to set up SHM"),
+		};
+		#[cfg(not(feature = "shm"))]
+		let sandcrust = Sandcrust {
+			file_in: unsafe { ::std::fs::File::from_raw_fd(fd_in) },
+			file_out: unsafe { ::std::fs::File::from_raw_fd(fd_out) },
+			child: 0,
+		};
+		sandcrust
 	}
 
 	/// New Sandcrust object for global use.
@@ -88,17 +119,28 @@ impl Sandcrust {
 		let (child_cmd_receive, parent_cmd_send) = ::nix::unistd::pipe().expect("sandcrust: failed to set up pipe");
 		let (parent_result_receive, child_result_send) = ::nix::unistd::pipe().expect("sandcrust: failed to set up pipe");
 
+		#[cfg(feature = "shm")]
+		let shm = memmap::Mmap::anonymous(SANDCRUST_SHM_SIZE, ::memmap::Protection::ReadWrite).expect("sandcrust: failed to set up SHM");
 		// get pid to check for parent termination
 		let ppid = ::nix::unistd::getpid();
 		let sandcrust = match ::nix::unistd::fork() {
 			Ok(::nix::unistd::ForkResult::Parent { child, .. }) => {
 				::nix::unistd::close(child_cmd_receive).expect("sandcrust: failed to close unused child read FD");
 				::nix::unistd::close(child_result_send).expect("sandcrust: failed to close unused child write FD");
-				Sandcrust {
+				#[cfg(feature = "shm")]
+				let sandcrust = Sandcrust {
 					file_in: unsafe { ::std::fs::File::from_raw_fd(parent_cmd_send) },
 					file_out: unsafe { ::std::fs::File::from_raw_fd(parent_result_receive) },
 					child: child,
-				}
+					shm: shm,
+				};
+				#[cfg(not(feature = "shm"))]
+				let sandcrust = Sandcrust {
+					file_in: unsafe { ::std::fs::File::from_raw_fd(parent_cmd_send) },
+					file_out: unsafe { ::std::fs::File::from_raw_fd(parent_result_receive) },
+					child: child,
+				};
+				sandcrust
 			}
 			Ok(::nix::unistd::ForkResult::Child) => {
 				// On Linux, instruct the kernel to kill the child when parent exits.
@@ -134,11 +176,21 @@ impl Sandcrust {
 				// not nice but might enable reuse of some methods
 				::nix::unistd::close(parent_cmd_send).expect("sandcrust: failed to close unused parent write FD");
 				::nix::unistd::close(parent_result_receive).expect("sandcrust: failed to close unused parent read FD");
-				Sandcrust {
+
+				#[cfg(feature = "shm")]
+				let sandcrust = Sandcrust {
 					file_in: unsafe { ::std::fs::File::from_raw_fd(child_result_send) },
 					file_out: unsafe { ::std::fs::File::from_raw_fd(child_cmd_receive) },
 					child: 0,
-				}
+					shm: shm,
+				};
+				#[cfg(not(feature = "shm"))]
+				let sandcrust = Sandcrust {
+					file_in: unsafe { ::std::fs::File::from_raw_fd(child_result_send) },
+					file_out: unsafe { ::std::fs::File::from_raw_fd(child_cmd_receive) },
+					child: 0,
+				};
+				sandcrust
 			}
 			Err(e) => panic!("sandcrust: fork() failed with error {}", e),
 		};
