@@ -11,6 +11,10 @@ extern crate serde;
 
 extern crate sandheap;
 
+#[cfg(feature = "shm")]
+extern crate memmap;
+
+
 #[allow(unused_imports)]
 #[macro_use]
 extern crate serde_derive;
@@ -42,17 +46,43 @@ pub use serde_derive::*;
 
 pub use serde::{Serialize, Deserialize};
 
+/// Default SHM size for Sandcrust.
+///
+/// Initialize with sandcrust_init_with_shm_size() or sandcrust_set_shm_size() to set a different size.
+#[cfg(feature = "shm")]
+pub static SANDCRUST_DEFAULT_SHM_SIZE: usize = 2097152;
+
+#[cfg(feature = "shm")]
+use std::io::Read;
+
+use std::io::Write;
+
 // main data structure for sandcrust
 #[doc(hidden)]
 #[derive(Debug)]
+#[cfg(feature = "shm")]
 pub struct Sandcrust {
-	file_in: ::std::fs::File,
-	file_out: ::std::fs::File,
+	file_in: std::fs::File,
+	file_out: std::fs::File,
+	child: SandcrustPid,
+	shm: ::memmap::Mmap,
+	shm_offset: usize,
+}
+
+// main data structure for sandcrust
+#[doc(hidden)]
+#[derive(Debug)]
+#[cfg(not(feature = "shm"))]
+pub struct Sandcrust {
+	file_in: std::io::BufWriter<std::fs::File>,
+	file_out: std::io::BufReader<std::fs::File>,
 	child: SandcrustPid,
 }
 
 
 // lazily initialized global Sandcrust object (via Deref magic) for global sandbox
+
+#[cfg(not(feature = "shm"))]
 lazy_static! {
 	#[doc(hidden)]
 	#[derive(Debug)]
@@ -61,6 +91,15 @@ lazy_static! {
 	};
 }
 
+#[cfg(feature = "shm")]
+lazy_static! {
+	#[doc(hidden)]
+	#[derive(Debug)]
+	pub static ref SANDCRUST: ::std::sync::Arc<::std::sync::Mutex<Sandcrust>> = {
+		std::sync::Arc::new(std::sync::Mutex::new(Sandcrust::fork_new()))
+	};
+	static ref SANDCRUST_SHM_SIZE: ::std::sync::Mutex<usize> = ::std::sync::Mutex::new(SANDCRUST_DEFAULT_SHM_SIZE);
+}
 
 // Necessary, because once the child is initialized, we need a lightweight, non-locking check to
 // run the original function.
@@ -73,11 +112,25 @@ impl Sandcrust {
 	/// New Sandcrust object for one time use.
 	pub fn new() -> Sandcrust {
 		let (fd_out, fd_in) = nix::unistd::pipe().expect("sandcrust: failed to set up pipe");
-		Sandcrust {
+
+		#[cfg(feature = "shm")]
+		let size = SANDCRUST_SHM_SIZE.lock().expect("sandcrust: failed to lock SANDCRUST_SHM_SIZE");
+
+		#[cfg(feature = "shm")]
+		let sandcrust = Sandcrust {
 			file_in: unsafe { ::std::fs::File::from_raw_fd(fd_in) },
 			file_out: unsafe { ::std::fs::File::from_raw_fd(fd_out) },
 			child: 0,
-		}
+			shm: memmap::Mmap::anonymous(*size, ::memmap::Protection::ReadWrite).expect("sandcrust: failed to set up SHM"),
+			shm_offset: 0,
+		};
+		#[cfg(not(feature = "shm"))]
+		let sandcrust = Sandcrust {
+			file_in: std::io::BufWriter::new(unsafe { ::std::fs::File::from_raw_fd(fd_in) }),
+			file_out: std::io::BufReader::new( unsafe { ::std::fs::File::from_raw_fd(fd_out) }),
+			child: 0,
+		};
+		sandcrust
 	}
 
 	/// New Sandcrust object for global use.
@@ -88,17 +141,32 @@ impl Sandcrust {
 		let (child_cmd_receive, parent_cmd_send) = ::nix::unistd::pipe().expect("sandcrust: failed to set up pipe");
 		let (parent_result_receive, child_result_send) = ::nix::unistd::pipe().expect("sandcrust: failed to set up pipe");
 
+		#[cfg(feature = "shm")]
+		let size = SANDCRUST_SHM_SIZE.lock().expect("sandcrust: failed to lock SANDCRUST_SHM_SIZE");
+
+		#[cfg(feature = "shm")]
+		let shm = memmap::Mmap::anonymous(*size, ::memmap::Protection::ReadWrite).expect("sandcrust: failed to set up SHM");
 		// get pid to check for parent termination
 		let ppid = ::nix::unistd::getpid();
 		let sandcrust = match ::nix::unistd::fork() {
 			Ok(::nix::unistd::ForkResult::Parent { child, .. }) => {
 				::nix::unistd::close(child_cmd_receive).expect("sandcrust: failed to close unused child read FD");
 				::nix::unistd::close(child_result_send).expect("sandcrust: failed to close unused child write FD");
-				Sandcrust {
-					file_in: unsafe { ::std::fs::File::from_raw_fd(parent_cmd_send) },
+				#[cfg(feature = "shm")]
+				let sandcrust = Sandcrust {
+					file_in:  unsafe { ::std::fs::File::from_raw_fd(parent_cmd_send) },
 					file_out: unsafe { ::std::fs::File::from_raw_fd(parent_result_receive) },
 					child: child,
-				}
+					shm: shm,
+					shm_offset: 0,
+				};
+				#[cfg(not(feature = "shm"))]
+				let sandcrust = Sandcrust {
+					file_in: std::io::BufWriter::new(unsafe { ::std::fs::File::from_raw_fd(parent_cmd_send) }),
+					file_out: std::io::BufReader::new( unsafe { ::std::fs::File::from_raw_fd(parent_result_receive) }),
+					child: child,
+				};
+				sandcrust
 			}
 			Ok(::nix::unistd::ForkResult::Child) => {
 				// On Linux, instruct the kernel to kill the child when parent exits.
@@ -134,11 +202,22 @@ impl Sandcrust {
 				// not nice but might enable reuse of some methods
 				::nix::unistd::close(parent_cmd_send).expect("sandcrust: failed to close unused parent write FD");
 				::nix::unistd::close(parent_result_receive).expect("sandcrust: failed to close unused parent read FD");
-				Sandcrust {
+
+				#[cfg(feature = "shm")]
+				let sandcrust = Sandcrust {
 					file_in: unsafe { ::std::fs::File::from_raw_fd(child_result_send) },
 					file_out: unsafe { ::std::fs::File::from_raw_fd(child_cmd_receive) },
 					child: 0,
-				}
+					shm: shm,
+					shm_offset: 0,
+				};
+				#[cfg(not(feature = "shm"))]
+				let sandcrust = Sandcrust {
+					file_in: std::io::BufWriter::new(unsafe { ::std::fs::File::from_raw_fd(child_result_send) }),
+					file_out: std::io::BufReader::new(unsafe { ::std::fs::File::from_raw_fd(child_cmd_receive) }),
+					child: 0,
+				};
+				sandcrust
 			}
 			Err(e) => panic!("sandcrust: fork() failed with error {}", e),
 		};
@@ -166,9 +245,18 @@ impl Sandcrust {
 
 	/// Wrapper to set up an external sandbox.
 	pub fn setup_sandbox(&self) {
-		let file_in = self.file_in.as_raw_fd();
-		let file_out = self.file_out.as_raw_fd();
-		sandbox::setup(file_in, file_out);
+		#[cfg(not(feature = "shm"))]
+		{
+			let file_in = self.file_in.get_ref().as_raw_fd();
+			let file_out = self.file_out.get_ref().as_raw_fd();
+			sandbox::setup(file_in, file_out);
+		}
+		#[cfg(feature = "shm")]
+		{
+			let file_in = self.file_in.as_raw_fd();
+			let file_out = self.file_out.as_raw_fd();
+			sandbox::setup(file_in, file_out);
+		}
 	}
 
 
@@ -179,18 +267,8 @@ impl Sandcrust {
 	fn run_child_loop(&mut self) {
 		self.setup_sandbox();
 		loop {
-			#[cfg(target_pointer_width = "32")]
-			let func_int: u32 = self.restore_var_from_fifo();
-			#[cfg(target_pointer_width = "64")]
-			let func_int: u64 = self.restore_var_from_fifo();
-			if func_int == 0 {
-				::std::process::exit(0);
-			} else {
-				unsafe {
-					let func: fn(&mut Sandcrust) = std::mem::transmute_copy(&func_int);
-					func(self);
-				}
-			}
+			let func: fn(&mut Sandcrust) = self.get_func_ptr();
+			func(self);
 		}
 	}
 
@@ -220,10 +298,135 @@ impl Sandcrust {
 	}
 
 
+	/// Reset SHM offset.
+	#[cfg(feature = "shm")]
+	pub fn reset_shm_offset(&mut self) {
+		self.shm_offset = 0;
+	}
+
+
+	/// Wait for return signal from child.
+	#[cfg(feature = "shm")]
+	pub fn await_return(&mut self) {
+		let mut buf = [0; 4];
+		while self.file_out.read(&mut buf).expect("sandcrust: failed to read ready-signal") == 0 {
+		//	println!("sandcrust: FIXME awaiting return");
+		}
+	}
+
+
+	/// Signal sucessful IPC return to parent.
+	#[cfg(feature = "shm")]
+	pub fn signal_return(&mut self) {
+		let _ = self.file_in.write_all(b"1312").expect("sandcrust: ready-signal write failed");
+	}
+
+	/// Transmit function pointer to child.
+	#[cfg(feature = "shm")]
+	pub fn put_func_ptr(&mut self, func: fn(&mut Sandcrust))  {
+		unsafe {
+			let func_ptr: *const u8 = ::std::mem::transmute(func);
+			#[cfg(target_pointer_width = "32")]
+			let buf: [u8; 4] = unsafe{ std::mem::transmute(func_ptr)};
+			//let buf = std::slice::from_raw_parts(func_ptr, 4);
+			#[cfg(target_pointer_width = "64")]
+			let buf: [u8; 8] = unsafe{ std::mem::transmute(func_ptr)};
+			//let buf = std::slice::from_raw_parts(func_ptr, 8);
+			let _ = self.file_in.write_all(&buf).expect("sandcrust: failed to send func ptr");
+		}
+	}
+
+	/// Transmit function pointer to child.
+	#[cfg(not(feature = "shm"))]
+	pub fn put_func_ptr(&mut self, func: fn(&mut Sandcrust))  {
+		#[cfg(target_pointer_width = "32")]
+		let func_int: u32 = unsafe { ::std::mem::transmute(func) };
+		#[cfg(target_pointer_width = "64")]
+		let func_int: u64 = unsafe { ::std::mem::transmute(func) };
+		self.put_var_in_fifo(&func_int);
+	}
+
+	/// Receive function pointer.
+	#[cfg(feature = "shm")]
+	pub fn get_func_ptr(&mut self) -> fn(&mut Sandcrust)  {
+		#[cfg(target_pointer_width = "32")]
+		let mut buf = [0; 4];
+		#[cfg(target_pointer_width = "64")]
+		let mut buf = [0; 8];
+		self.file_out.read_exact(&mut buf).expect("sandcrust: failed to read func ptr");
+		let func_ptr: *const u8 = unsafe { std::mem::transmute(buf) };
+		let func: fn(&mut Sandcrust) = unsafe { std::mem::transmute(func_ptr) };
+		func
+	}
+
+	/// Receive function pointer.
+	#[cfg(not(feature = "shm"))]
+	pub fn get_func_ptr(&mut self) -> fn(&mut Sandcrust)  {
+		#[cfg(target_pointer_width = "32")]
+		let func_int: u32 = self.restore_var_from_fifo();
+		#[cfg(target_pointer_width = "64")]
+		let func_int: u64 = self.restore_var_from_fifo();
+		let func: fn(&mut Sandcrust) = unsafe { std::mem::transmute_copy(&func_int) };
+		func
+	}
+
+	/// Put variable.
+	pub fn put_var<T: ::serde::Serialize>(&mut self, var: T) {
+		#[cfg(not(feature = "shm"))]
+		#[inline]
+		self.put_var_in_fifo(var);
+		#[cfg(feature = "shm")]
+		{
+			let remaining_mem: usize = self.shm.len() - self.shm_offset;
+
+			match ::bincode::serialized_size_bounded(&var, remaining_mem as u64) {
+				Some(size) => {
+					let mut mem = unsafe { self.shm.as_mut_slice() };
+					let mut window = &mut mem[self.shm_offset..];
+					::bincode::serialize_into(& mut window,
+												&var,
+												::bincode::Bounded(remaining_mem as u64))
+												.expect("sandcrust: failed to put variable in shm");
+					self.shm_offset += size as usize;
+				},
+				None => panic!("sandcrust: SHM out of memory!"),
+			}
+		}
+	}
+
+
+	/// Get variable.
+	pub fn restore_var<T: ::serde::Deserialize>(&mut self) -> T {
+		#[cfg(not(feature = "shm"))]
+		#[inline]
+		{
+			self.restore_var_from_fifo()
+		}
+		#[cfg(feature = "shm")]
+		{
+		let mem = unsafe { self.shm.as_slice() };
+		let window = &mem[self.shm_offset..];
+		::bincode::deserialize(window).expect("sandcrust: failed to read variable from shm")
+		}
+	}
+
+
+	/// FIXME: ugly clude b/c otherwise the compiler won't know that var (being type X) is
+	/// serializeable
+	/// Either find some trait magic to shut it up, or combine in macro
+	#[cfg(feature = "shm")]
+	pub fn update_shm_offset<T: ::serde::Serialize>(&mut self, var: T) {
+		self.shm_offset += ::bincode::serialized_size(&var) as usize;
+	}
+
+
 	/// Send '0' command pointer to child loop, causing child to shut down, and collect the child's
     /// exit status.
 	pub fn terminate_child(&mut self) {
-		self.put_var_in_fifo(0u64);
+		let func: fn(&mut Sandcrust) = child_terminate;
+		self.put_func_ptr(func);
+		#[cfg(not(feature = "shm"))]
+		self.flush_pipe();
 		self.join_child();
 	}
 
@@ -240,11 +443,22 @@ impl Sandcrust {
 		self.file_in = new_sandcrust.file_in;
 		self.file_out = new_sandcrust.file_out;
 		self.child = new_sandcrust.child;
+		#[cfg(feature = "shm")]
+		{
+			self.shm = new_sandcrust.shm;
+			self.shm_offset = 0;
+		}
 	}
 
 	/// Wrap fork for use in one-time sandbox macro to avoid exporting nix.
 	pub fn fork(&self) -> Result<SandcrustForkResult, ::nix::Error> {
 		nix::unistd::fork()
+	}
+
+	/// Flush Writer pipe to clear buffer.
+	#[cfg(not(feature = "shm"))]
+	pub fn flush_pipe(&mut self) {
+		self.file_in.flush().expect("sandcrust: write flush failed");
 	}
 }
 
@@ -253,9 +467,9 @@ impl Sandcrust {
 #[doc(hidden)]
 #[macro_export]
 macro_rules! sandcrust_store_changed_vars {
-	($sandcrust:ident, &mut $head:ident) => { $sandcrust.put_var_in_fifo($head); };
+	($sandcrust:ident, &mut $head:ident) => { $sandcrust.put_var($head); };
 	($sandcrust:ident, &mut $head:ident, $($tail:tt)*) => {
-		$sandcrust.put_var_in_fifo($head);
+		$sandcrust.put_var($head);
 		sandcrust_store_changed_vars!($sandcrust, $($tail)*);
 	};
 	($sandcrust:ident, &$head:ident) => { };
@@ -278,13 +492,40 @@ macro_rules! sandcrust_store_changed_vars {
 /// Restore potentially changed vars from pipe in the parent after IPC call.
 #[doc(hidden)]
 #[macro_export]
+#[cfg(not(feature = "shm"))]
 macro_rules! sandcrust_restore_changed_vars {
 	// only restore mut types
 	($sandcrust:ident, &mut $head:ident) => {
-		$head = $sandcrust.restore_var_from_fifo();
+		$head = $sandcrust.restore_var();
 	};
 	($sandcrust:ident, &mut $head:ident, $($tail:tt)+) => {
-		$head = $sandcrust.restore_var_from_fifo();
+		$head = $sandcrust.restore_var();
+		sandcrust_restore_changed_vars!($sandcrust, $($tail)+);
+	};
+	($sandcrust:ident, &$head:ident) => { };
+	($sandcrust:ident, &$head:ident, $($tail:tt)+) => { sandcrust_restore_changed_vars!($sandcrust, $($tail)+); };
+	// actually, the stmt match (for directly passing values) is greedy and will match the next ident, too
+	($sandcrust:ident, $head:stmt) => { };
+	($sandcrust:ident, $head:stmt, $($tail:tt)+) => { sandcrust_restore_changed_vars!($sandcrust, $($tail)+); };
+	($sandcrust:ident, $head:ident) => { };
+	($sandcrust:ident, $head:ident, $($tail:tt)+) => { sandcrust_restore_changed_vars!($sandcrust, $($tail)+); };
+	($sandcrust:ident, ) => {};
+}
+
+
+/// Restore potentially changed vars from pipe in the parent after IPC call.
+#[doc(hidden)]
+#[macro_export]
+#[cfg(feature = "shm")]
+macro_rules! sandcrust_restore_changed_vars {
+	// only restore mut types
+	($sandcrust:ident, &mut $head:ident) => {
+		$head = $sandcrust.restore_var();
+		$sandcrust.update_shm_offset(&$head);
+	};
+	($sandcrust:ident, &mut $head:ident, $($tail:tt)+) => {
+		$head = $sandcrust.restore_var();
+		$sandcrust.update_shm_offset(&$head);
 		sandcrust_restore_changed_vars!($sandcrust, $($tail)+);
 	};
 	($sandcrust:ident, &$head:ident) => { };
@@ -304,12 +545,13 @@ macro_rules! sandcrust_restore_changed_vars {
 /// but inside the function &mut vars need to be dereferenced.
 #[doc(hidden)]
 #[macro_export]
+#[cfg(not(feature = "shm"))]
 macro_rules! sandcrust_restore_changed_vars_global {
 	($sandcrust:ident, $head:ident : &mut $typo:ty) => {
-		*$head = $sandcrust.restore_var_from_fifo();
+		*$head = $sandcrust.restore_var();
 	};
 	($sandcrust:ident, $head:ident : &mut $typo:ty, $($tail:tt)+) => {
-		*$head = $sandcrust.restore_var_from_fifo();
+		*$head = $sandcrust.restore_var();
 		sandcrust_restore_changed_vars_global!($sandcrust, $($tail)+);
 	};
 	($sandcrust:ident, $head:ident : &$typo:ty) => { };
@@ -328,30 +570,62 @@ macro_rules! sandcrust_restore_changed_vars_global {
 }
 
 
+/// Restore potentially changed vars from pipe in the parent after IPC call.
+///
+/// Global version - this would be a merge candidate with sandcrust_restore_changed_vars,
+/// but inside the function &mut vars need to be dereferenced.
+#[doc(hidden)]
+#[macro_export]
+#[cfg(feature = "shm")]
+macro_rules! sandcrust_restore_changed_vars_global {
+	($sandcrust:ident, $head:ident : &mut $typo:ty) => {
+		*$head = $sandcrust.restore_var();
+		$sandcrust.update_shm_offset($head);
+	};
+	($sandcrust:ident, $head:ident : &mut $typo:ty, $($tail:tt)+) => {
+		*$head = $sandcrust.restore_var();
+		$sandcrust.update_shm_offset($head);
+		sandcrust_restore_changed_vars_global!($sandcrust, $($tail)+);
+	};
+	($sandcrust:ident, $head:ident : &$typo:ty) => { };
+	($sandcrust:ident, $head:ident : &$typo:ty, $($tail:tt)+) => {
+		sandcrust_restore_changed_vars_global!($sandcrust, $($tail)+);
+	};
+	($sandcrust:ident, $head:ident : $typo:ty, $($tail:tt)+) => {
+		sandcrust_restore_changed_vars_global!($sandcrust, $($tail)+);
+	};
+	($sandcrust:ident, mut $head:ident : $typo:ty ) => { };
+	($sandcrust:ident, mut $head:ident : $typo:ty, $($tail:tt)+) => {
+		sandcrust_restore_changed_vars_global!($sandcrust, $($tail)+);
+	};
+	($sandcrust:ident, $head:ident : $typo:ty ) => { };
+	($sandcrust:ident, ) => {};
+}
+
 /// Push function arguments to global client in case they have changed since forking.
 #[doc(hidden)]
 #[macro_export]
 macro_rules! sandcrust_push_function_args {
-	($sandcrust:ident, $head:ident : &mut $typo:ty) => { $sandcrust.put_var_in_fifo(&*$head); };
+	($sandcrust:ident, $head:ident : &mut $typo:ty) => { $sandcrust.put_var(&*$head); };
 	($sandcrust:ident, $head:ident : &mut $typo:ty, $($tail:tt)+) => {
-		$sandcrust.put_var_in_fifo(&*$head);
+		$sandcrust.put_var(&*$head);
 		sandcrust_push_function_args!($sandcrust, $($tail)+);
 	};
-	($sandcrust:ident, $head:ident : &$typo:ty) => { $sandcrust.put_var_in_fifo($head); };
+	($sandcrust:ident, $head:ident : &$typo:ty) => { $sandcrust.put_var($head); };
 	($sandcrust:ident, $head:ident : &$typo:ty, $($tail:tt)+) => {
-		$sandcrust.put_var_in_fifo($head);
+		$sandcrust.put_var($head);
 		sandcrust_push_function_args!($sandcrust, $($tail)+);
 	};
 	($sandcrust:ident, $head:ident : $typo:ty, $($tail:tt)+) => {
-		$sandcrust.put_var_in_fifo($head);
+		$sandcrust.put_var($head);
 		sandcrust_push_function_args!($sandcrust, $($tail)+);
 	};
 	($sandcrust:ident, $head:ident : $typo:ty ) => {
-		$sandcrust.put_var_in_fifo($head);
+		$sandcrust.put_var($head);
 	};
-	($sandcrust:ident, mut $head:ident : $typo:ty ) => { $sandcrust.put_var_in_fifo($head); };
+	($sandcrust:ident, mut $head:ident : $typo:ty ) => { $sandcrust.put_var($head); };
 	($sandcrust:ident, mut $head:ident : $typo:ty, $($tail:tt)+) => {
-		$sandcrust.put_var_in_fifo($head);
+		$sandcrust.put_var($head);
 		sandcrust_push_function_args!($sandcrust, $($tail)+);
 	};
 	($sandcrust:ident, ) => {};
@@ -361,33 +635,79 @@ macro_rules! sandcrust_push_function_args {
 /// Pull function arguments in global client.
 #[doc(hidden)]
 #[macro_export]
+#[cfg(not(feature = "shm"))]
 macro_rules! sandcrust_pull_function_args {
 	($sandcrust:ident, $head:ident : &mut $typo:ty) => {
-		let mut $head: $typo = $sandcrust.restore_var_from_fifo();
+		let mut $head: $typo = $sandcrust.restore_var();
 	};
 	($sandcrust:ident, $head:ident : &mut $typo:ty, $($tail:tt)+) => {
-		let mut $head: $typo = $sandcrust.restore_var_from_fifo();
+		let mut $head: $typo = $sandcrust.restore_var();
 		sandcrust_pull_function_args!($sandcrust, $($tail)+);
 	};
 	($sandcrust:ident, $head:ident : &$typo:ty) => {
-		let $head: $typo = $sandcrust.restore_var_from_fifo();
+		let $head: $typo = $sandcrust.restore_var();
 	};
 	($sandcrust:ident, $head:ident : &$typo:ty, $($tail:tt)+) => {
-		let $head: $typo = $sandcrust.restore_var_from_fifo();
+		let $head: $typo = $sandcrust.restore_var();
 		sandcrust_pull_function_args!($sandcrust, $($tail)+);
 	};
 	($sandcrust:ident, $head:ident : $typo:ty, $($tail:tt)+) => {
-		let $head: $typo = $sandcrust.restore_var_from_fifo();
+		let $head: $typo = $sandcrust.restore_var();
 		sandcrust_pull_function_args!($sandcrust, $($tail)+);
 	};
 	($sandcrust:ident, $head:ident : $typo:ty ) => {
-		let $head: $typo = $sandcrust.restore_var_from_fifo();
+		let $head: $typo = $sandcrust.restore_var();
 	};
 	($sandcrust:ident, mut $head:ident : $typo:ty ) => {
-		let mut $head: $typo = $sandcrust.restore_var_from_fifo();
+		let mut $head: $typo = $sandcrust.restore_var();
 	};
 	($sandcrust:ident, mut $head:ident : $typo:ty, $($tail:tt)+) => {
-		let mut $head: $typo = $sandcrust.restore_var_from_fifo();
+		let mut $head: $typo = $sandcrust.restore_var();
+		sandcrust_pull_function_args!($sandcrust, $($tail)+);
+	};
+	($sandcrust:ident, ) => {};
+}
+
+
+/// Pull function arguments in global client.
+#[doc(hidden)]
+#[macro_export]
+#[cfg(feature = "shm")]
+macro_rules! sandcrust_pull_function_args {
+	($sandcrust:ident, $head:ident : &mut $typo:ty) => {
+		let mut $head: $typo = $sandcrust.restore_var();
+		$sandcrust.update_shm_offset($head);
+	};
+	($sandcrust:ident, $head:ident : &mut $typo:ty, $($tail:tt)+) => {
+		let mut $head: $typo = $sandcrust.restore_var();
+		$sandcrust.update_shm_offset($head);
+		sandcrust_pull_function_args!($sandcrust, $($tail)+);
+	};
+	($sandcrust:ident, $head:ident : &$typo:ty) => {
+		let $head: $typo = $sandcrust.restore_var();
+		$sandcrust.update_shm_offset(&$head);
+	};
+	($sandcrust:ident, $head:ident : &$typo:ty, $($tail:tt)+) => {
+		let $head: $typo = $sandcrust.restore_var();
+		$sandcrust.update_shm_offset(&$head);
+		sandcrust_pull_function_args!($sandcrust, $($tail)+);
+	};
+	($sandcrust:ident, $head:ident : $typo:ty, $($tail:tt)+) => {
+		let $head: $typo = $sandcrust.restore_var();
+		$sandcrust.update_shm_offset($head);
+		sandcrust_pull_function_args!($sandcrust, $($tail)+);
+	};
+	($sandcrust:ident, $head:ident : $typo:ty ) => {
+		let $head: $typo = $sandcrust.restore_var();
+		$sandcrust.update_shm_offset(&$head);
+	};
+	($sandcrust:ident, mut $head:ident : $typo:ty ) => {
+		let mut $head: $typo = $sandcrust.restore_var();
+		$sandcrust.update_shm_offset(&$head);
+	};
+	($sandcrust:ident, mut $head:ident : $typo:ty, $($tail:tt)+) => {
+		let mut $head: $typo = $sandcrust.restore_var();
+		$sandcrust.update_shm_offset(&$head);
 		sandcrust_pull_function_args!($sandcrust, $($tail)+);
 	};
 	($sandcrust:ident, ) => {};
@@ -397,15 +717,41 @@ macro_rules! sandcrust_pull_function_args {
 /// Run function, gathering return value if available.
 #[doc(hidden)]
 #[macro_export]
+#[cfg(not(feature = "shm"))]
 macro_rules! sandcrust_run_func {
 	(has_ret, $sandcrust:ident, $f:ident($($x:tt)*)) => {
 		let retval = $f($($x)*);
 		sandcrust_store_changed_vars!($sandcrust, $($x)*);
-		$sandcrust.put_var_in_fifo(&retval);
+		$sandcrust.put_var(&retval);
+		$sandcrust.flush_pipe();
 	};
 	(no_ret, $sandcrust:ident, $f:ident($($x:tt)*)) => {
 		$f($($x)*);
 		sandcrust_store_changed_vars!($sandcrust, $($x)*);
+		$sandcrust.flush_pipe();
+	};
+}
+
+/// Run function, gathering return value if available.
+#[doc(hidden)]
+#[macro_export]
+#[cfg(feature = "shm")]
+macro_rules! sandcrust_run_func {
+	(has_ret, $sandcrust:ident, $f:ident($($x:tt)*)) => {
+		let retval = $f($($x)*);
+		$sandcrust.reset_shm_offset();
+		sandcrust_store_changed_vars!($sandcrust, $($x)*);
+		$sandcrust.put_var(&retval);
+		$sandcrust.signal_return();
+		//$sandcrust.put_var_in_fifo(42i32);
+		$sandcrust.reset_shm_offset();
+
+	};
+	(no_ret, $sandcrust:ident, $f:ident($($x:tt)*)) => {
+		$f($($x)*);
+		$sandcrust.reset_shm_offset();
+		sandcrust_store_changed_vars!($sandcrust, $($x)*);
+		$sandcrust.signal_return();
 	};
 }
 
@@ -413,14 +759,15 @@ macro_rules! sandcrust_run_func {
 /// Collect return value in parent, if available.
 #[doc(hidden)]
 #[macro_export]
+#[cfg(not(feature = "shm"))]
 macro_rules! sandcrust_collect_ret {
 	(has_ret, $rettype:ty, $sandcrust:ident) => {{
-		let retval: $rettype = $sandcrust.restore_var_from_fifo();
+		let retval: $rettype = $sandcrust.restore_var();
 		retval
 	}};
 	(no_ret, $rettype:ty, $sandcrust:ident) => { () };
 	(has_ret, $sandcrust:ident) => {{
-		let retval = $sandcrust.restore_var_from_fifo();
+		let retval = $sandcrust.restore_var();
 		$sandcrust.join_child();
 		retval
 	}};
@@ -429,6 +776,29 @@ macro_rules! sandcrust_collect_ret {
 	};
 }
 
+
+/// Collect return value in parent, if available.
+#[doc(hidden)]
+#[macro_export]
+#[cfg(feature = "shm")]
+macro_rules! sandcrust_collect_ret {
+	(has_ret, $rettype:ty, $sandcrust:ident) => {{
+		let retval: $rettype = $sandcrust.restore_var();
+		$sandcrust.reset_shm_offset();
+		retval
+	}};
+	(no_ret, $rettype:ty, $sandcrust:ident) => {{
+		$sandcrust.reset_shm_offset();
+	}};
+	(has_ret, $sandcrust:ident) => {{
+		let retval = $sandcrust.restore_var();
+		$sandcrust.join_child();
+		retval
+	}};
+	(no_ret, $sandcrust:ident) => {
+		$sandcrust.join_child();
+	};
+}
 
 /// Strip argument types from function definition for calling the function.
 ///
@@ -478,6 +848,8 @@ macro_rules! sandbox_internal {
 			Ok($crate::SandcrustForkResult::Child) => {
 				sandcrust.setup_sandbox();
 				sandcrust_run_func!($has_retval, sandcrust, $f($($x)*));
+				#[cfg(not(feature = "shm"))]
+				sandcrust.flush_pipe();
 				::std::process::exit(0);
 			}
 			Err(e) => panic!("sandcrust: fork() failed with error {}", e),
@@ -490,6 +862,7 @@ macro_rules! sandbox_internal {
 /// Create global SandcrustWrapper Trait to update client arguments and run the function.
 #[doc(hidden)]
 #[macro_export]
+#[cfg(not(feature = "shm"))]
 macro_rules! sandcrust_global_create_wrapper {
 	($has_retval:ident, fn $f:ident($($x:tt)*)) => {
 		// Fake trait to implement a function to use as a wrapper function.
@@ -525,12 +898,53 @@ macro_rules! sandcrust_global_create_wrapper {
 }
 
 
+/// Create global SandcrustWrapper Trait to update client arguments and run the function.
+#[doc(hidden)]
+#[macro_export]
+#[cfg(feature = "shm")]
+macro_rules! sandcrust_global_create_wrapper {
+	($has_retval:ident, fn $f:ident($($x:tt)*)) => {
+		// Fake trait to implement a function to use as a wrapper function.
+		// FIXME: ideally this should be done by defining a struct (like SandcrustWrapper) in the macro,
+		// but only once (#ifndef bla struct OnlyOnce; #define bla #endif - Style) and just adding
+		// a method named $f to it - however I haven't been able to figure out how to check for an
+		// existing definition at compile time.
+		// Using a trait instead, because traits can be added to a data type defined (once) elsewhere.
+		// However, the downside is polluting the trait namespace, potentially colliding with
+		// existing traits when wrapping functions such as Clone, Drop, etc.
+		//	a simple $f_wrapped won't do in any way: https://github.com/rust-lang/rust/issues/12249
+		#[allow(non_camel_case_types)]
+		trait $f {
+			// This doesn't work unfortunately...
+			// #[allow(non_snake_case)]
+			fn $f(sandcrust: &mut $crate::Sandcrust);
+		}
+
+		// wrapper function generated to draw the right amount of args from pipe
+		// before calling the whole function client-side
+		// It would be awesome to bind this to the existing struct Sandcrust, however at the
+		// expense of possible function name collisions.
+		impl $f for $crate::SandcrustWrapper {
+			fn $f(sandcrust: &mut $crate::Sandcrust) {
+				sandcrust.reset_shm_offset();
+				// get updated mutable global variables, if any
+				sandcrust_pull_global(sandcrust);
+
+				sandcrust_pull_function_args!(sandcrust, $($x)*);
+				sandcrust_strip_types!(sandcrust_run_func, $has_retval, sandcrust, $f($($x)*));
+			}
+		}
+	};
+}
+
+
 /// Create global funtion definition in place of the original.
 ///
 /// Possibly called by PARENT (and child):
 /// FIXME: am besten gleich: je nach direkt-c oder nicht die in Ruhe lassen und nen anderen wrapper nehmen
 #[doc(hidden)]
 #[macro_export]
+#[cfg(not(feature = "shm"))]
 macro_rules! sandcrust_global_create_function {
 	($has_retval:ident, fn $f:ident($($x:tt)*) -> $rettype:ty $body:block ) => {
 			// as an initialized child, just run function
@@ -544,18 +958,13 @@ macro_rules! sandcrust_global_create_function {
 
 					// function pointer to newly created method...
 					let func: fn(&mut $crate::Sandcrust) = $crate::SandcrustWrapper::$f;
-					// ... sent as u64 because this will be serializable
-					// FIXME use if cfg!(target_pointer_width = "32"), but seems broken
-					unsafe {
-						#[cfg(target_pointer_width = "32")]
-						let func_int: u32 = ::std::mem::transmute(func);
-						#[cfg(target_pointer_width = "64")]
-						let func_int: u64 = ::std::mem::transmute(func);
-						sandcrust.put_var_in_fifo(&func_int);
-					}
+					sandcrust.put_func_ptr(func);
+
 					// update any mutable global variables in the child
 					sandcrust_push_global(&mut sandcrust);
 					sandcrust_push_function_args!(sandcrust, $($x)*);
+					sandcrust.flush_pipe();
+
 					sandcrust_restore_changed_vars_global!(sandcrust, $($x)*);
 					sandcrust_collect_ret!($has_retval, $rettype, sandcrust)
 			}
@@ -563,6 +972,41 @@ macro_rules! sandcrust_global_create_function {
 }
 
 
+/// Create global funtion definition in place of the original.
+///
+/// Possibly called by PARENT (and child):
+/// FIXME: am besten gleich: je nach direkt-c oder nicht die in Ruhe lassen und nen anderen wrapper nehmen
+#[doc(hidden)]
+#[macro_export]
+#[cfg(feature = "shm")]
+macro_rules! sandcrust_global_create_function {
+	($has_retval:ident, fn $f:ident($($x:tt)*) -> $rettype:ty $body:block ) => {
+			// as an initialized child, just run function
+			if unsafe{SANDCRUST_INITIALIZED_CHILD} {
+				$body
+			} else {
+					let mut sandcrust = SANDCRUST.lock().expect("sandcrust: failed to lock mutex on global object");
+					// potenially completely unintialized, if we're the child on first access, run
+					// child loop
+					sandcrust.initialize_child();
+
+					// update any mutable global variables in the child
+					sandcrust.reset_shm_offset();
+					sandcrust_push_global(&mut sandcrust);
+					sandcrust_push_function_args!(sandcrust, $($x)*);
+
+					// function pointer to newly created method...
+					let func: fn(&mut $crate::Sandcrust) = $crate::SandcrustWrapper::$f;
+					// in SHM version, send the function after putting args
+					sandcrust.put_func_ptr(func);
+
+					sandcrust.await_return();
+					sandcrust.reset_shm_offset();
+					sandcrust_restore_changed_vars_global!(sandcrust, $($x)*);
+					sandcrust_collect_ret!($has_retval, $rettype, sandcrust)
+			}
+	};
+}
 /// Wrap a function.
 ///
 /// # This macro can be used in two major ways:
@@ -697,6 +1141,21 @@ pub fn sandcrust_init() {
 	}
 }
 
+/// Initialize sandcrust with a custom SHM size.
+#[cfg(feature = "shm")]
+pub fn sandcrust_init_with_shm_size(new_size: usize) {
+	#[inline]
+	sandcrust_set_shm_size(new_size);
+	#[inline]
+	sandcrust_init();
+}
+
+/// Set a custom SHM size.
+#[cfg(feature = "shm")]
+pub fn sandcrust_set_shm_size(new_size: usize) {
+	let mut size = SANDCRUST_SHM_SIZE.lock().expect("sandcrust: failed to lock SANDCRUST_SHM_SIZE");
+	*size = new_size;
+}
 
 /// Terminate the global child.
 ///
@@ -714,6 +1173,10 @@ pub fn sandcrust_terminate() {
 	sandcrust.terminate_child();
 }
 
+/// child-side cleanup function that adheres to the wrapper function signature.
+fn child_terminate(sandcrust: &mut Sandcrust) {
+	::std::process::exit(0);
+}
 
 /// Update mutable global variables.
 ///
@@ -750,7 +1213,7 @@ macro_rules! sandcrust_wrap_global {
 		fn sandcrust_push_global(sandcrust: &mut $crate::Sandcrust) {
 			unsafe {
 				$(
-					sandcrust.put_var_in_fifo(&$name);
+					sandcrust.put_var(&$name);
 				)+
 			}
 		}
@@ -758,7 +1221,9 @@ macro_rules! sandcrust_wrap_global {
 		fn sandcrust_pull_global(sandcrust: &mut $crate::Sandcrust) {
 			$(
 				unsafe{
-					$name = sandcrust.restore_var_from_fifo();
+					$name = sandcrust.restore_var();
+					#[cfg(feature = "shm")]
+					sandcrust.update_shm_offset(&$name);
 				}
 			)+
 		}

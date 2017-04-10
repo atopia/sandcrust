@@ -10,22 +10,26 @@ license = "MIT/Apache-2.0"
 readme = "README.md"
 description = "Automatically execute wrapped functions in a sandboxed process."
 
-[lib]
-name = "sandcrust"
-path = "src/lib.rs"
-
 [[bin]]
 name = "sandstorm"
 path = "src/sandstorm.rs"
 
-[features]
-auto_respawn = [ ]
-
 [dependencies]
-nix = "0.8.0"
+bincode = "1.0.0-alpha7"
+lazy_static = "0.2.6"
 libc = "0.2.21"
-sandheap = { path = "../sandheap" }
-bincode = "1.0.0-alpha6"
-lazy_static = "0.2.4"
-serde_derive = "0.9.11"
-serde = "0.9.11"
+memmap = { version = "0.5.2", optional = true }
+nix = "0.8.0"
+serde = "0.9.13"
+serde_derive = "0.9.13"
+
+[dependencies.sandheap]
+path = "../sandheap"
+
+[features]
+auto_respawn = []
+shm = ["memmap"]
+
+[lib]
+name = "sandcrust"
+path = "src/lib.rs"
