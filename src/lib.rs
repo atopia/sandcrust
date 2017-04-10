@@ -59,8 +59,8 @@ use std::io::Write;
 #[derive(Debug)]
 #[cfg(feature = "shm")]
 pub struct Sandcrust {
-	file_in: std::io::BufWriter<std::fs::File>,
-	file_out: std::io::BufReader<std::fs::File>,
+	file_in: std::fs::File,
+	file_out: std::fs::File,
 	child: SandcrustPid,
 	shm: ::memmap::Mmap,
 	shm_offset: usize,
@@ -100,8 +100,8 @@ impl Sandcrust {
 		let (fd_out, fd_in) = nix::unistd::pipe().expect("sandcrust: failed to set up pipe");
 		#[cfg(feature = "shm")]
 		let sandcrust = Sandcrust {
-			file_in: std::io::BufWriter::new(unsafe { ::std::fs::File::from_raw_fd(fd_in) }),
-			file_out: std::io::BufReader::new( unsafe { ::std::fs::File::from_raw_fd(fd_out) }),
+			file_in: unsafe { ::std::fs::File::from_raw_fd(fd_in) },
+			file_out: unsafe { ::std::fs::File::from_raw_fd(fd_out) },
 			child: 0,
 			shm: memmap::Mmap::anonymous(SANDCRUST_SHM_SIZE, ::memmap::Protection::ReadWrite).expect("sandcrust: failed to set up SHM"),
 			shm_offset: 0,
@@ -133,8 +133,8 @@ impl Sandcrust {
 				::nix::unistd::close(child_result_send).expect("sandcrust: failed to close unused child write FD");
 				#[cfg(feature = "shm")]
 				let sandcrust = Sandcrust {
-					file_in:  std::io::BufWriter::new(unsafe { ::std::fs::File::from_raw_fd(parent_cmd_send) }),
-					file_out: std::io::BufReader::new( unsafe { ::std::fs::File::from_raw_fd(parent_result_receive) }),
+					file_in:  unsafe { ::std::fs::File::from_raw_fd(parent_cmd_send) },
+					file_out: unsafe { ::std::fs::File::from_raw_fd(parent_result_receive) },
 					child: child,
 					shm: shm,
 					shm_offset: 0,
@@ -184,8 +184,8 @@ impl Sandcrust {
 
 				#[cfg(feature = "shm")]
 				let sandcrust = Sandcrust {
-					file_in: std::io::BufWriter::new(unsafe { ::std::fs::File::from_raw_fd(child_result_send) }),
-					file_out: std::io::BufReader::new(unsafe { ::std::fs::File::from_raw_fd(child_cmd_receive) }),
+					file_in: unsafe { ::std::fs::File::from_raw_fd(child_result_send) },
+					file_out: unsafe { ::std::fs::File::from_raw_fd(child_cmd_receive) },
 					child: 0,
 					shm: shm,
 					shm_offset: 0,
@@ -224,9 +224,18 @@ impl Sandcrust {
 
 	/// Wrapper to set up an external sandbox.
 	pub fn setup_sandbox(&self) {
-		let file_in = self.file_in.get_ref().as_raw_fd();
-		let file_out = self.file_out.get_ref().as_raw_fd();
-		sandbox::setup(file_in, file_out);
+		#[cfg(not(feature = "shm"))]
+		{
+			let file_in = self.file_in.get_ref().as_raw_fd();
+			let file_out = self.file_out.get_ref().as_raw_fd();
+			sandbox::setup(file_in, file_out);
+		}
+		#[cfg(feature = "shm")]
+		{
+			let file_in = self.file_in.as_raw_fd();
+			let file_out = self.file_out.as_raw_fd();
+			sandbox::setup(file_in, file_out);
+		}
 	}
 
 
