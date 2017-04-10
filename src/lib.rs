@@ -246,18 +246,8 @@ impl Sandcrust {
 	fn run_child_loop(&mut self) {
 		self.setup_sandbox();
 		loop {
-			#[cfg(target_pointer_width = "32")]
-			let func_int: u32 = self.restore_var_from_fifo();
-			#[cfg(target_pointer_width = "64")]
-			let func_int: u64 = self.restore_var_from_fifo();
-			if func_int == 0 {
-				::std::process::exit(0);
-			} else {
-				unsafe {
-					let func: fn(&mut Sandcrust) = std::mem::transmute_copy(&func_int);
-					func(self);
-				}
-			}
+			let func: fn(&mut Sandcrust) = self.get_func_ptr();
+			func(self);
 		}
 	}
 
@@ -299,7 +289,7 @@ impl Sandcrust {
 	pub fn await_return(&mut self) {
 		let mut buf = [0; 4];
 		while self.file_out.read(&mut buf).expect("sandcrust: failed to read ready-signal") == 0 {
-			println!("sandcrust: FIXME awaiting return");
+		//	println!("sandcrust: FIXME awaiting return");
 		}
 	}
 
@@ -307,9 +297,57 @@ impl Sandcrust {
 	/// Signal sucessful IPC return to parent.
 	#[cfg(feature = "shm")]
 	pub fn signal_return(&mut self) {
-		let _ = self.file_in.write(b"1312").expect("sandcrust: ready-signal write failed");
+		let _ = self.file_in.write_all(b"1312").expect("sandcrust: ready-signal write failed");
 	}
 
+	/// Transmit function pointer to child.
+	#[cfg(feature = "shm")]
+	pub fn put_func_ptr(&mut self, func: fn(&mut Sandcrust))  {
+		unsafe {
+			let func_ptr: *const u8 = ::std::mem::transmute(func);
+			#[cfg(target_pointer_width = "32")]
+			let buf: [u8; 4] = unsafe{ std::mem::transmute(func_ptr)};
+			//let buf = std::slice::from_raw_parts(func_ptr, 4);
+			#[cfg(target_pointer_width = "64")]
+			let buf: [u8; 8] = unsafe{ std::mem::transmute(func_ptr)};
+			//let buf = std::slice::from_raw_parts(func_ptr, 8);
+			let _ = self.file_in.write_all(&buf).expect("sandcrust: failed to send func ptr");
+		}
+	}
+
+	/// Transmit function pointer to child.
+	#[cfg(not(feature = "shm"))]
+	pub fn put_func_ptr(&mut self, func: fn(&mut Sandcrust))  {
+		#[cfg(target_pointer_width = "32")]
+		let func_int: u32 = unsafe { ::std::mem::transmute(func) };
+		#[cfg(target_pointer_width = "64")]
+		let func_int: u64 = unsafe { ::std::mem::transmute(func) };
+		self.put_var_in_fifo(&func_int);
+	}
+
+	/// Receive function pointer.
+	#[cfg(feature = "shm")]
+	pub fn get_func_ptr(&mut self) -> fn(&mut Sandcrust)  {
+		#[cfg(target_pointer_width = "32")]
+		let mut buf = [0; 4];
+		#[cfg(target_pointer_width = "64")]
+		let mut buf = [0; 8];
+		self.file_out.read_exact(&mut buf).expect("sandcrust: failed to read func ptr");
+		let func_ptr: *const u8 = unsafe { std::mem::transmute(buf) };
+		let func: fn(&mut Sandcrust) = unsafe { std::mem::transmute(func_ptr) };
+		func
+	}
+
+	/// Receive function pointer.
+	#[cfg(not(feature = "shm"))]
+	pub fn get_func_ptr(&mut self) -> fn(&mut Sandcrust)  {
+		#[cfg(target_pointer_width = "32")]
+		let func_int: u32 = self.restore_var_from_fifo();
+		#[cfg(target_pointer_width = "64")]
+		let func_int: u64 = self.restore_var_from_fifo();
+		let func: fn(&mut Sandcrust) = unsafe { std::mem::transmute_copy(&func_int) };
+		func
+	}
 
 	/// Put variable.
 	pub fn put_var<T: ::serde::Serialize>(&mut self, var: T) {
@@ -364,7 +402,8 @@ impl Sandcrust {
 	/// Send '0' command pointer to child loop, causing child to shut down, and collect the child's
     /// exit status.
 	pub fn terminate_child(&mut self) {
-		self.put_var_in_fifo(0u64);
+		let func: fn(&mut Sandcrust) = child_terminate;
+		self.put_func_ptr(func);
 		#[cfg(not(feature = "shm"))]
 		self.flush_pipe();
 		self.join_child();
@@ -893,12 +932,7 @@ macro_rules! sandcrust_global_create_function {
 
 					// function pointer to newly created method...
 					let func: fn(&mut $crate::Sandcrust) = $crate::SandcrustWrapper::$f;
-					#[cfg(target_pointer_width = "32")]
-					let func_int: u32 = unsafe { ::std::mem::transmute(func) };
-					#[cfg(target_pointer_width = "64")]
-					let func_int: u64 = unsafe { ::std::mem::transmute(func) };
-
-					sandcrust.put_var_in_fifo(&func_int);
+					sandcrust.put_func_ptr(func);
 
 					// update any mutable global variables in the child
 					sandcrust_push_global(&mut sandcrust);
@@ -930,24 +964,17 @@ macro_rules! sandcrust_global_create_function {
 					// child loop
 					sandcrust.initialize_child();
 
-					// function pointer to newly created method...
-					let func: fn(&mut $crate::Sandcrust) = $crate::SandcrustWrapper::$f;
-					#[cfg(target_pointer_width = "32")]
-					let func_int: u32 = unsafe { ::std::mem::transmute(func) };
-					#[cfg(target_pointer_width = "64")]
-					let func_int: u64 = unsafe { ::std::mem::transmute(func) };
-
-					sandcrust.reset_shm_offset();
-
 					// update any mutable global variables in the child
+					sandcrust.reset_shm_offset();
 					sandcrust_push_global(&mut sandcrust);
 					sandcrust_push_function_args!(sandcrust, $($x)*);
 
+					// function pointer to newly created method...
+					let func: fn(&mut $crate::Sandcrust) = $crate::SandcrustWrapper::$f;
 					// in SHM version, send the function after putting args
-					sandcrust.put_var_in_fifo(&func_int);
-					#[allow(unused_variables)]
+					sandcrust.put_func_ptr(func);
+
 					sandcrust.await_return();
-					//let unused: i32 = sandcrust.restore_var_from_fifo();
 					sandcrust.reset_shm_offset();
 					sandcrust_restore_changed_vars_global!(sandcrust, $($x)*);
 					sandcrust_collect_ret!($has_retval, $rettype, sandcrust)
@@ -1105,6 +1132,10 @@ pub fn sandcrust_terminate() {
 	sandcrust.terminate_child();
 }
 
+/// child-side cleanup function that adheres to the wrapper function signature.
+fn child_terminate(sandcrust: &mut Sandcrust) {
+	::std::process::exit(0);
+}
 
 /// Update mutable global variables.
 ///
