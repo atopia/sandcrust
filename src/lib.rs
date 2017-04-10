@@ -49,7 +49,9 @@ pub use serde::{Serialize, Deserialize};
 #[cfg(feature = "shm")]
 static SANDCRUST_SHM_SIZE: usize = 2097152;
 
+#[cfg(feature = "shm")]
 use std::io::Read;
+#[cfg(feature = "shm")]
 pub use std::io::Write;
 
 // main data structure for sandcrust
@@ -308,15 +310,15 @@ impl Sandcrust {
 		self.put_var_in_fifo(var);
 		#[cfg(feature = "shm")]
 		{
-			let remaining_mem: u64 = (SANDCRUST_SHM_SIZE - self.shm_offset) as u64;
+			let remaining_mem: usize = self.shm.len() - self.shm_offset;
 
-			match ::bincode::serialized_size_bounded(&var, remaining_mem) {
+			match ::bincode::serialized_size_bounded(&var, remaining_mem as u64) {
 				Some(size) => {
 					let mut mem = unsafe { self.shm.as_mut_slice() };
 					let mut window = &mut mem[self.shm_offset..];
 					::bincode::serialize_into(& mut window,
 												&var,
-												::bincode::Bounded(remaining_mem))
+												::bincode::Bounded(remaining_mem as u64))
 												.expect("sandcrust: failed to put variable in shm");
 					self.shm_offset += size as usize;
 				},
