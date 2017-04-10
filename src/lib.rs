@@ -443,6 +443,11 @@ impl Sandcrust {
 		self.file_in = new_sandcrust.file_in;
 		self.file_out = new_sandcrust.file_out;
 		self.child = new_sandcrust.child;
+		#[cfg(feature = "shm")]
+		{
+			self.shm = new_sandcrust.shm;
+			self.shm_offset = 0;
+		}
 	}
 
 	/// Wrap fork for use in one-time sandbox macro to avoid exporting nix.
