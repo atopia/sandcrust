@@ -299,7 +299,6 @@ impl Sandcrust {
 	#[cfg(feature = "shm")]
 	pub fn signal_return(&mut self) {
 		let _ = self.file_in.write(b"1312").expect("sandcrust: ready-signal write failed");
-		self.flush_pipe();
 	}
 
 
@@ -357,6 +356,7 @@ impl Sandcrust {
     /// exit status.
 	pub fn terminate_child(&mut self) {
 		self.put_var_in_fifo(0u64);
+		#[cfg(not(feature = "shm"))]
 		self.flush_pipe();
 		self.join_child();
 	}
@@ -775,6 +775,7 @@ macro_rules! sandbox_internal {
 			Ok($crate::SandcrustForkResult::Child) => {
 				sandcrust.setup_sandbox();
 				sandcrust_run_func!($has_retval, sandcrust, $f($($x)*));
+				#[cfg(not(feature = "shm"))]
 				sandcrust.flush_pipe();
 				::std::process::exit(0);
 			}
