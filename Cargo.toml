@@ -15,13 +15,13 @@ name = "sandstorm"
 path = "src/sandstorm.rs"
 
 [dependencies]
-bincode = "1.0.0-alpha6"
-lazy_static = "0.2.4"
+bincode = "1.0.0-alpha7"
+lazy_static = "0.2.6"
 libc = "0.2.21"
 memmap = { version = "0.5.2", optional = true }
 nix = "0.8.0"
-serde = "0.9.11"
-serde_derive = "0.9.11"
+serde = "0.9.13"
+serde_derive = "0.9.13"
 
 [dependencies.sandheap]
 path = "../sandheap"
