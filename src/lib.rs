@@ -51,16 +51,16 @@ static SANDCRUST_SHM_SIZE: usize = 2097152;
 
 #[cfg(feature = "shm")]
 use std::io::Read;
-#[cfg(feature = "shm")]
-pub use std::io::Write;
+
+use std::io::Write;
 
 // main data structure for sandcrust
 #[doc(hidden)]
 #[derive(Debug)]
 #[cfg(feature = "shm")]
 pub struct Sandcrust {
-	file_in: ::std::fs::File,
-	file_out: ::std::fs::File,
+	file_in: std::io::BufWriter<std::fs::File>,
+	file_out: std::io::BufReader<std::fs::File>,
 	child: SandcrustPid,
 	shm: ::memmap::Mmap,
 	shm_offset: usize,
@@ -71,8 +71,8 @@ pub struct Sandcrust {
 #[derive(Debug)]
 #[cfg(not(feature = "shm"))]
 pub struct Sandcrust {
-	file_in: ::std::fs::File,
-	file_out: ::std::fs::File,
+	file_in: std::io::BufWriter<std::fs::File>,
+	file_out: std::io::BufReader<std::fs::File>,
 	child: SandcrustPid,
 }
 
@@ -100,16 +100,16 @@ impl Sandcrust {
 		let (fd_out, fd_in) = nix::unistd::pipe().expect("sandcrust: failed to set up pipe");
 		#[cfg(feature = "shm")]
 		let sandcrust = Sandcrust {
-			file_in: unsafe { ::std::fs::File::from_raw_fd(fd_in) },
-			file_out: unsafe { ::std::fs::File::from_raw_fd(fd_out) },
+			file_in: std::io::BufWriter::new(unsafe { ::std::fs::File::from_raw_fd(fd_in) }),
+			file_out: std::io::BufReader::new( unsafe { ::std::fs::File::from_raw_fd(fd_out) }),
 			child: 0,
 			shm: memmap::Mmap::anonymous(SANDCRUST_SHM_SIZE, ::memmap::Protection::ReadWrite).expect("sandcrust: failed to set up SHM"),
 			shm_offset: 0,
 		};
 		#[cfg(not(feature = "shm"))]
 		let sandcrust = Sandcrust {
-			file_in: unsafe { ::std::fs::File::from_raw_fd(fd_in) },
-			file_out: unsafe { ::std::fs::File::from_raw_fd(fd_out) },
+			file_in: std::io::BufWriter::new(unsafe { ::std::fs::File::from_raw_fd(fd_in) }),
+			file_out: std::io::BufReader::new( unsafe { ::std::fs::File::from_raw_fd(fd_out) }),
 			child: 0,
 		};
 		sandcrust
@@ -133,16 +133,16 @@ impl Sandcrust {
 				::nix::unistd::close(child_result_send).expect("sandcrust: failed to close unused child write FD");
 				#[cfg(feature = "shm")]
 				let sandcrust = Sandcrust {
-					file_in: unsafe { ::std::fs::File::from_raw_fd(parent_cmd_send) },
-					file_out: unsafe { ::std::fs::File::from_raw_fd(parent_result_receive) },
+					file_in:  std::io::BufWriter::new(unsafe { ::std::fs::File::from_raw_fd(parent_cmd_send) }),
+					file_out: std::io::BufReader::new( unsafe { ::std::fs::File::from_raw_fd(parent_result_receive) }),
 					child: child,
 					shm: shm,
 					shm_offset: 0,
 				};
 				#[cfg(not(feature = "shm"))]
 				let sandcrust = Sandcrust {
-					file_in: unsafe { ::std::fs::File::from_raw_fd(parent_cmd_send) },
-					file_out: unsafe { ::std::fs::File::from_raw_fd(parent_result_receive) },
+					file_in: std::io::BufWriter::new(unsafe { ::std::fs::File::from_raw_fd(parent_cmd_send) }),
+					file_out: std::io::BufReader::new( unsafe { ::std::fs::File::from_raw_fd(parent_result_receive) }),
 					child: child,
 				};
 				sandcrust
@@ -184,16 +184,16 @@ impl Sandcrust {
 
 				#[cfg(feature = "shm")]
 				let sandcrust = Sandcrust {
-					file_in: unsafe { ::std::fs::File::from_raw_fd(child_result_send) },
-					file_out: unsafe { ::std::fs::File::from_raw_fd(child_cmd_receive) },
+					file_in: std::io::BufWriter::new(unsafe { ::std::fs::File::from_raw_fd(child_result_send) }),
+					file_out: std::io::BufReader::new(unsafe { ::std::fs::File::from_raw_fd(child_cmd_receive) }),
 					child: 0,
 					shm: shm,
 					shm_offset: 0,
 				};
 				#[cfg(not(feature = "shm"))]
 				let sandcrust = Sandcrust {
-					file_in: unsafe { ::std::fs::File::from_raw_fd(child_result_send) },
-					file_out: unsafe { ::std::fs::File::from_raw_fd(child_cmd_receive) },
+					file_in: std::io::BufWriter::new(unsafe { ::std::fs::File::from_raw_fd(child_result_send) }),
+					file_out: std::io::BufReader::new(unsafe { ::std::fs::File::from_raw_fd(child_cmd_receive) }),
 					child: 0,
 				};
 				sandcrust
@@ -224,8 +224,8 @@ impl Sandcrust {
 
 	/// Wrapper to set up an external sandbox.
 	pub fn setup_sandbox(&self) {
-		let file_in = self.file_in.as_raw_fd();
-		let file_out = self.file_out.as_raw_fd();
+		let file_in = self.file_in.get_ref().as_raw_fd();
+		let file_out = self.file_out.get_ref().as_raw_fd();
 		sandbox::setup(file_in, file_out);
 	}
 
@@ -296,10 +296,10 @@ impl Sandcrust {
 
 
 	/// Signal sucessful IPC return to parent.
+	#[cfg(feature = "shm")]
 	pub fn signal_return(&mut self) {
-		#[allow(unused_results)]
-		self.file_in.write(b"1312").expect("sandcrust: ready-signal write failed");
-		self.file_in.flush().expect("sandcrust: ready-signal write flush failed");
+		let _ = self.file_in.write(b"1312").expect("sandcrust: ready-signal write failed");
+		self.flush_pipe();
 	}
 
 
@@ -357,6 +357,7 @@ impl Sandcrust {
     /// exit status.
 	pub fn terminate_child(&mut self) {
 		self.put_var_in_fifo(0u64);
+		self.flush_pipe();
 		self.join_child();
 	}
 
@@ -378,6 +379,12 @@ impl Sandcrust {
 	/// Wrap fork for use in one-time sandbox macro to avoid exporting nix.
 	pub fn fork(&self) -> Result<SandcrustForkResult, ::nix::Error> {
 		nix::unistd::fork()
+	}
+
+	/// Flush Writer pipe to clear buffer.
+	#[cfg(not(feature = "shm"))]
+	pub fn flush_pipe(&mut self) {
+		self.file_in.flush().expect("sandcrust: write flush failed");
 	}
 }
 
@@ -642,10 +649,12 @@ macro_rules! sandcrust_run_func {
 		let retval = $f($($x)*);
 		sandcrust_store_changed_vars!($sandcrust, $($x)*);
 		$sandcrust.put_var(&retval);
+		$sandcrust.flush_pipe();
 	};
 	(no_ret, $sandcrust:ident, $f:ident($($x:tt)*)) => {
 		$f($($x)*);
 		sandcrust_store_changed_vars!($sandcrust, $($x)*);
+		$sandcrust.flush_pipe();
 	};
 }
 
@@ -766,6 +775,7 @@ macro_rules! sandbox_internal {
 			Ok($crate::SandcrustForkResult::Child) => {
 				sandcrust.setup_sandbox();
 				sandcrust_run_func!($has_retval, sandcrust, $f($($x)*));
+				sandcrust.flush_pipe();
 				::std::process::exit(0);
 			}
 			Err(e) => panic!("sandcrust: fork() failed with error {}", e),
@@ -884,6 +894,7 @@ macro_rules! sandcrust_global_create_function {
 					// update any mutable global variables in the child
 					sandcrust_push_global(&mut sandcrust);
 					sandcrust_push_function_args!(sandcrust, $($x)*);
+					sandcrust.flush_pipe();
 
 					sandcrust_restore_changed_vars_global!(sandcrust, $($x)*);
 					sandcrust_collect_ret!($has_retval, $rettype, sandcrust)
