@@ -37,7 +37,7 @@ mod arg_parse {
 	}
 
 	fn by_direct_value(a: i32) {
-		assert_eq!(a, 32);
+		assert_eq!(a, 42);
 	}
 
 	#[test]
