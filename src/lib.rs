@@ -1061,10 +1061,10 @@ pub fn sandcrust_init() {
 	let mut sandcrust = SANDCRUST.lock().expect("sandcrust: init: failed to lock mutex on global object");
 	if sandcrust.child == -1 {
 		sandcrust.respawn();
-		if !unsafe { SANDCRUST_INITIALIZED_CHILD } && sandcrust.child == 0 {
-			unsafe { SANDCRUST_INITIALIZED_CHILD = true };
-			sandcrust.run_child_loop();
-		}
+	}
+	if !unsafe { SANDCRUST_INITIALIZED_CHILD } && sandcrust.child == 0 {
+		unsafe { SANDCRUST_INITIALIZED_CHILD = true };
+		sandcrust.run_child_loop();
 	}
 }
 
