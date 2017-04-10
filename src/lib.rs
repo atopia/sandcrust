@@ -616,7 +616,7 @@ macro_rules! sandcrust_pull_function_args {
 	($sandcrust:ident, $head:ident : &$typo:ty, $($tail:tt)+) => {
 		let $head: $typo = $sandcrust.restore_var();
 		$sandcrust.update_shm_offset(&$head);
-		sandcrust_pull_function_args!(&$sandcrust, $($tail)+);
+		sandcrust_pull_function_args!($sandcrust, $($tail)+);
 	};
 	($sandcrust:ident, $head:ident : $typo:ty, $($tail:tt)+) => {
 		let $head: $typo = $sandcrust.restore_var();
@@ -678,7 +678,6 @@ macro_rules! sandcrust_run_func {
 		$sandcrust.reset_shm_offset();
 		sandcrust_store_changed_vars!($sandcrust, $($x)*);
 		$sandcrust.signal_return();
-		//$sandcrust.put_var_in_fifo(42i32);
 	};
 }
 
