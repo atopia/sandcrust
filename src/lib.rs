@@ -46,8 +46,11 @@ pub use serde_derive::*;
 
 pub use serde::{Serialize, Deserialize};
 
+/// Default SHM size for Sandcrust.
+///
+/// Initialize with sandcrust_init_with_shm_size() or sandcrust_set_shm_size() to set a different size.
 #[cfg(feature = "shm")]
-static SANDCRUST_SHM_SIZE: usize = 2097152;
+pub static SANDCRUST_DEFAULT_SHM_SIZE: usize = 2097152;
 
 #[cfg(feature = "shm")]
 use std::io::Read;
@@ -78,6 +81,8 @@ pub struct Sandcrust {
 
 
 // lazily initialized global Sandcrust object (via Deref magic) for global sandbox
+
+#[cfg(not(feature = "shm"))]
 lazy_static! {
 	#[doc(hidden)]
 	#[derive(Debug)]
@@ -86,6 +91,15 @@ lazy_static! {
 	};
 }
 
+#[cfg(feature = "shm")]
+lazy_static! {
+	#[doc(hidden)]
+	#[derive(Debug)]
+	pub static ref SANDCRUST: ::std::sync::Arc<::std::sync::Mutex<Sandcrust>> = {
+		std::sync::Arc::new(std::sync::Mutex::new(Sandcrust::fork_new()))
+	};
+	static ref SANDCRUST_SHM_SIZE: ::std::sync::Mutex<usize> = ::std::sync::Mutex::new(SANDCRUST_DEFAULT_SHM_SIZE);
+}
 
 // Necessary, because once the child is initialized, we need a lightweight, non-locking check to
 // run the original function.
@@ -98,12 +112,16 @@ impl Sandcrust {
 	/// New Sandcrust object for one time use.
 	pub fn new() -> Sandcrust {
 		let (fd_out, fd_in) = nix::unistd::pipe().expect("sandcrust: failed to set up pipe");
+
+		#[cfg(feature = "shm")]
+		let size = SANDCRUST_SHM_SIZE.lock().expect("sandcrust: failed to lock SANDCRUST_SHM_SIZE");
+
 		#[cfg(feature = "shm")]
 		let sandcrust = Sandcrust {
 			file_in: unsafe { ::std::fs::File::from_raw_fd(fd_in) },
 			file_out: unsafe { ::std::fs::File::from_raw_fd(fd_out) },
 			child: 0,
-			shm: memmap::Mmap::anonymous(SANDCRUST_SHM_SIZE, ::memmap::Protection::ReadWrite).expect("sandcrust: failed to set up SHM"),
+			shm: memmap::Mmap::anonymous(*size, ::memmap::Protection::ReadWrite).expect("sandcrust: failed to set up SHM"),
 			shm_offset: 0,
 		};
 		#[cfg(not(feature = "shm"))]
@@ -124,7 +142,10 @@ impl Sandcrust {
 		let (parent_result_receive, child_result_send) = ::nix::unistd::pipe().expect("sandcrust: failed to set up pipe");
 
 		#[cfg(feature = "shm")]
-		let shm = memmap::Mmap::anonymous(SANDCRUST_SHM_SIZE, ::memmap::Protection::ReadWrite).expect("sandcrust: failed to set up SHM");
+		let size = SANDCRUST_SHM_SIZE.lock().expect("sandcrust: failed to lock SANDCRUST_SHM_SIZE");
+
+		#[cfg(feature = "shm")]
+		let shm = memmap::Mmap::anonymous(*size, ::memmap::Protection::ReadWrite).expect("sandcrust: failed to set up SHM");
 		// get pid to check for parent termination
 		let ppid = ::nix::unistd::getpid();
 		let sandcrust = match ::nix::unistd::fork() {
@@ -1115,6 +1136,21 @@ pub fn sandcrust_init() {
 	}
 }
 
+/// Initialize sandcrust with a custom SHM size.
+#[cfg(feature = "shm")]
+pub fn sandcrust_init_with_shm_size(new_size: usize) {
+	#[inline]
+	sandcrust_set_shm_size(new_size);
+	#[inline]
+	sandcrust_init();
+}
+
+/// Set a custom SHM size.
+#[cfg(feature = "shm")]
+pub fn sandcrust_set_shm_size(new_size: usize) {
+	let mut size = SANDCRUST_SHM_SIZE.lock().expect("sandcrust: failed to lock SANDCRUST_SHM_SIZE");
+	*size = new_size;
+}
 
 /// Terminate the global child.
 ///
