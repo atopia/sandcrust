@@ -52,10 +52,8 @@ pub use serde::{Serialize, Deserialize};
 #[cfg(feature = "shm")]
 pub static SANDCRUST_DEFAULT_SHM_SIZE: usize = 2097152;
 
-#[cfg(any(feature = "shm", feature = "custom_vec"))]
-use std::io::Read;
+use std::io::{Read,Write};
 
-use std::io::Write;
 
 // main data structure for sandcrust
 #[doc(hidden)]
@@ -323,7 +321,6 @@ impl Sandcrust {
 	}
 
 	/// Transmit function pointer to child.
-	#[cfg(feature = "shm")]
 	pub fn put_func_ptr(&mut self, func: fn(&mut Sandcrust))  {
 		unsafe {
 			let func_ptr: *const u8 = ::std::mem::transmute(func);
@@ -337,18 +334,7 @@ impl Sandcrust {
 		}
 	}
 
-	/// Transmit function pointer to child.
-	#[cfg(not(feature = "shm"))]
-	pub fn put_func_ptr(&mut self, func: fn(&mut Sandcrust))  {
-		#[cfg(target_pointer_width = "32")]
-		let func_int: u32 = unsafe { ::std::mem::transmute(func) };
-		#[cfg(target_pointer_width = "64")]
-		let func_int: u64 = unsafe { ::std::mem::transmute(func) };
-		self.put_var_in_fifo(&func_int);
-	}
-
 	/// Receive function pointer.
-	#[cfg(feature = "shm")]
 	pub fn get_func_ptr(&mut self) -> fn(&mut Sandcrust)  {
 		#[cfg(target_pointer_width = "32")]
 		let mut buf = [0u8; 4];
@@ -357,17 +343,6 @@ impl Sandcrust {
 		self.file_out.read_exact(&mut buf).expect("sandcrust: failed to read func ptr");
 		let func_ptr: *const u8 = unsafe { std::mem::transmute(buf) };
 		let func: fn(&mut Sandcrust) = unsafe { std::mem::transmute(func_ptr) };
-		func
-	}
-
-	/// Receive function pointer.
-	#[cfg(not(feature = "shm"))]
-	pub fn get_func_ptr(&mut self) -> fn(&mut Sandcrust)  {
-		#[cfg(target_pointer_width = "32")]
-		let func_int: u32 = self.restore_var_from_fifo();
-		#[cfg(target_pointer_width = "64")]
-		let func_int: u64 = self.restore_var_from_fifo();
-		let func: fn(&mut Sandcrust) = unsafe { std::mem::transmute_copy(&func_int) };
 		func
 	}
 
