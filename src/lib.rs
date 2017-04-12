@@ -330,7 +330,7 @@ impl Sandcrust {
 			let buf: [u8; 4] = unsafe{ std::mem::transmute(func_ptr)};
 			//let buf = std::slice::from_raw_parts(func_ptr, 4);
 			#[cfg(target_pointer_width = "64")]
-			let buf: [u8; 8] = unsafe{ std::mem::transmute(func_ptr)};
+			let buf: [u8; 8] = std::mem::transmute(func_ptr);
 			//let buf = std::slice::from_raw_parts(func_ptr, 8);
 			let _ = self.file_in.write_all(&buf).expect("sandcrust: failed to send func ptr");
 		}
@@ -383,7 +383,7 @@ impl Sandcrust {
 				Some(size) => {
 					let mut mem = unsafe { self.shm.as_mut_slice() };
 					let mut window = &mut mem[self.shm_offset..];
-					::bincode::serialize_into(& mut window,
+					::bincode::serialize_into(&mut window,
 												&var,
 												::bincode::Bounded(remaining_mem as u64))
 												.expect("sandcrust: failed to put variable in shm");
@@ -1174,6 +1174,7 @@ pub fn sandcrust_terminate() {
 }
 
 /// child-side cleanup function that adheres to the wrapper function signature.
+#[allow(unused_variables)]
 fn child_terminate(sandcrust: &mut Sandcrust) {
 	::std::process::exit(0);
 }
