@@ -1127,13 +1127,13 @@ macro_rules! sandcrust_pull_function_args {
 #[macro_export]
 #[cfg(all(not(feature = "shm"), not(feature = "custom_vec")))]
 macro_rules! sandcrust_run_func_global {
-	(has_ret, $rettype:ty, $sandcrust:ident, $f:ident($($x:tt)*)) => {
+	(has_ret, $has_vec:ident, $sandcrust:ident, $f:ident($($x:tt)*)) => {
 		let retval = sandcrust_strip_types!($f($($x)*));
 		sandcrust_store_changed_vars_global!($sandcrust, $($x)*);
 		$sandcrust.put_var(&retval);
 		$sandcrust.flush_pipe();
 	};
-	(no_ret, $rettype:ty, $sandcrust:ident, $f:ident($($x:tt)*)) => {
+	(no_ret, no_vec, $sandcrust:ident, $f:ident($($x:tt)*)) => {
 		sandcrust_strip_types!($f($($x)*));
 		sandcrust_store_changed_vars_global!($sandcrust, $($x)*);
 		$sandcrust.flush_pipe();
@@ -1145,7 +1145,7 @@ macro_rules! sandcrust_run_func_global {
 #[macro_export]
 #[cfg(all(feature = "shm", not(feature = "custom_vec")))]
 macro_rules! sandcrust_run_func_global {
-	(has_ret, $rettype:ty, $sandcrust:ident, $f:ident($($x:tt)*)) => {
+	(has_ret, $has_vec:ident, $sandcrust:ident, $f:ident($($x:tt)*)) => {
 		let retval = sandcrust_strip_types!($f($($x)*));
 		$sandcrust.reset_shm_offset();
 		sandcrust_store_changed_vars_global!($sandcrust, $($x)*);
@@ -1154,7 +1154,7 @@ macro_rules! sandcrust_run_func_global {
 		$sandcrust.reset_shm_offset();
 
 	};
-	(no_ret, $rettype:ty, $sandcrust:ident, $f:ident($($x:tt)*)) => {
+	(no_ret, no_vec, $sandcrust:ident, $f:ident($($x:tt)*)) => {
 		sandcrust_strip_types!($f($($x)*));
 		$sandcrust.reset_shm_offset();
 		sandcrust_store_changed_vars_global!($sandcrust, $($x)*);
@@ -1174,13 +1174,13 @@ macro_rules! sandcrust_run_func_global {
 		$sandcrust.put_byte_vector(&retval);
 		$sandcrust.flush_pipe();
 	};
-	(has_ret, $rettype:ty, $sandcrust:ident, $f:ident($($x:tt)*)) => {
+	(has_ret, no_vec, $sandcrust:ident, $f:ident($($x:tt)*)) => {
 		let retval = sandcrust_strip_types!($f($($x)*));
 		sandcrust_store_changed_vars_global!($sandcrust, $($x)*);
 		$sandcrust.put_var(&retval);
 		$sandcrust.flush_pipe();
 	};
-	(no_ret, $rettype:ty, $sandcrust:ident, $f:ident($($x:tt)*)) => {
+	(no_ret, no_vec, $sandcrust:ident, $f:ident($($x:tt)*)) => {
 		sandcrust_strip_types!($f($($x)*));
 		sandcrust_store_changed_vars_global!($sandcrust, $($x)*);
 		$sandcrust.flush_pipe();
@@ -1192,7 +1192,7 @@ macro_rules! sandcrust_run_func_global {
 #[macro_export]
 #[cfg(all(feature = "shm", feature = "custom_vec"))]
 macro_rules! sandcrust_run_func_global {
-	(has_ret, Vec<u8>, $sandcrust:ident, $f:ident($($x:tt)*)) => {
+	(has_ret, has_vec, $sandcrust:ident, $f:ident($($x:tt)*)) => {
 		let retval = sandcrust_strip_types!($f($($x)*));
 		$sandcrust.reset_shm_offset();
 		sandcrust_store_changed_vars_global!($sandcrust, $($x)*);
@@ -1201,7 +1201,7 @@ macro_rules! sandcrust_run_func_global {
 		$sandcrust.reset_shm_offset();
 
 	};
-	(has_ret, $rettype:ty, $sandcrust:ident, $f:ident($($x:tt)*)) => {
+	(has_ret, no_vec, $sandcrust:ident, $f:ident($($x:tt)*)) => {
 		let retval = sandcrust_strip_types!($f($($x)*));
 		$sandcrust.reset_shm_offset();
 		sandcrust_store_changed_vars_global!($sandcrust, $($x)*);
@@ -1210,7 +1210,7 @@ macro_rules! sandcrust_run_func_global {
 		$sandcrust.reset_shm_offset();
 
 	};
-	(no_ret, $rettype:ty,  $sandcrust:ident, $f:ident($($x:tt)*)) => {
+	(no_ret, no_vec, $sandcrust:ident, $f:ident($($x:tt)*)) => {
 		sandcrust_strip_types!($f($($x)*));
 		$sandcrust.reset_shm_offset();
 		sandcrust_store_changed_vars_global!($sandcrust, $($x)*);
@@ -1265,15 +1265,16 @@ macro_rules! sandcrust_run_func {
 #[macro_export]
 #[cfg(not(feature = "shm"))]
 macro_rules! sandcrust_collect_ret {
-	(has_ret, Vec<u8>, $sandcrust:ident) => {{
-		let retval: Vec<u8> = $sandcrust.restore_byte_vector();
+	(has_ret, has_vec, $rettype:ty , $sandcrust:ident) => {{
+		let retval: $rettype = $sandcrust.restore_byte_vector();
 		retval
 	}};
-	(has_ret, $rettype:ty, $sandcrust:ident) => {{
+	(no_ret, no_vec, $rettype:ty, $sandcrust:ident) => { () };
+	(has_ret, no_vec,  $rettype:ty, $sandcrust:ident) => {{
 		let retval: $rettype = $sandcrust.restore_var();
 		retval
 	}};
-	(no_ret, $rettype:ty, $sandcrust:ident) => { () };
+	(no_ret, no_vec,  $rettype:ty, $sandcrust:ident) => { () };
 	(has_ret, $sandcrust:ident) => {{
 		let retval = $sandcrust.restore_var();
 		$sandcrust.join_child();
@@ -1290,17 +1291,17 @@ macro_rules! sandcrust_collect_ret {
 #[macro_export]
 #[cfg(feature = "shm")]
 macro_rules! sandcrust_collect_ret {
-	(has_ret, Vec<u8>, $sandcrust:ident) => {{
-		let retval: Vec<u8> = $sandcrust.restore_byte_vector();
+	(has_ret, has_vec, $rettype:ty , $sandcrust:ident) => {{
+		let retval: $rettype = $sandcrust.restore_byte_vector();
 		$sandcrust.reset_shm_offset();
 		retval
 	}};
-	(has_ret, $rettype:ty, $sandcrust:ident) => {{
+	(has_ret, no_vec,  $rettype:ty, $sandcrust:ident) => {{
 		let retval: $rettype = $sandcrust.restore_var();
 		$sandcrust.reset_shm_offset();
 		retval
 	}};
-	(no_ret, $rettype:ty, $sandcrust:ident) => {{
+	(no_ret, no_vec, $rettype:ty, $sandcrust:ident) => {{
 		$sandcrust.reset_shm_offset();
 	}};
 	(has_ret, $sandcrust:ident) => {{
@@ -1377,7 +1378,7 @@ macro_rules! sandbox_internal {
 #[macro_export]
 #[cfg(not(feature = "shm"))]
 macro_rules! sandcrust_global_create_wrapper {
-	($has_retval:ident, $rettype:ty, fn $f:ident($($x:tt)*)) => {
+	($has_retval:ident, $has_vec:ident, fn $f:ident($($x:tt)*)) => {
 		// Fake trait to implement a function to use as a wrapper function.
 		// FIXME: ideally this should be done by defining a struct (like SandcrustWrapper) in the macro,
 		// but only once (#ifndef bla struct OnlyOnce; #define bla #endif - Style) and just adding
@@ -1404,7 +1405,7 @@ macro_rules! sandcrust_global_create_wrapper {
 				sandcrust_pull_global(sandcrust);
 
 				sandcrust_pull_function_args!(sandcrust, $($x)*);
-				sandcrust_run_func_global!($has_retval, $rettype, sandcrust, $f($($x)*));
+				sandcrust_run_func_global!($has_retval, $has_vec, sandcrust, $f($($x)*));
 			}
 		}
 	};
@@ -1416,7 +1417,7 @@ macro_rules! sandcrust_global_create_wrapper {
 #[macro_export]
 #[cfg(feature = "shm")]
 macro_rules! sandcrust_global_create_wrapper {
-	($has_retval:ident, $rettype:ty, fn $f:ident($($x:tt)*)) => {
+	($has_retval:ident, $has_vec:ident, fn $f:ident($($x:tt)*)) => {
 		// Fake trait to implement a function to use as a wrapper function.
 		// FIXME: ideally this should be done by defining a struct (like SandcrustWrapper) in the macro,
 		// but only once (#ifndef bla struct OnlyOnce; #define bla #endif - Style) and just adding
@@ -1444,7 +1445,7 @@ macro_rules! sandcrust_global_create_wrapper {
 				sandcrust_pull_global(sandcrust);
 
 				sandcrust_pull_function_args!(sandcrust, $($x)*);
-				sandcrust_run_func_global!($has_retval, $rettype, sandcrust, $f($($x)*));
+				sandcrust_run_func_global!($has_retval, $has_vec, sandcrust, $f($($x)*));
 			}
 		}
 	};
@@ -1459,7 +1460,7 @@ macro_rules! sandcrust_global_create_wrapper {
 #[macro_export]
 #[cfg(not(feature = "shm"))]
 macro_rules! sandcrust_global_create_function {
-	($has_retval:ident, fn $f:ident($($x:tt)*) -> $rettype:ty $body:block ) => {
+	($has_retval:ident, $has_vec:ident, fn $f:ident($($x:tt)*) -> $rettype:ty $body:block ) => {
 			// as an initialized child, just run function
 			if unsafe{SANDCRUST_INITIALIZED_CHILD} {
 				$body
@@ -1479,7 +1480,7 @@ macro_rules! sandcrust_global_create_function {
 					sandcrust.flush_pipe();
 
 					sandcrust_restore_changed_vars_global!(sandcrust, $($x)*);
-					sandcrust_collect_ret!($has_retval, $rettype, sandcrust)
+					sandcrust_collect_ret!($has_retval, $has_vec, $rettype, sandcrust)
 			}
 	};
 }
@@ -1493,7 +1494,7 @@ macro_rules! sandcrust_global_create_function {
 #[macro_export]
 #[cfg(feature = "shm")]
 macro_rules! sandcrust_global_create_function {
-	($has_retval:ident, fn $f:ident($($x:tt)*) -> $rettype:ty $body:block ) => {
+	($has_retval:ident, $has_vec:ident, fn $f:ident($($x:tt)*) -> $rettype:ty $body:block ) => {
 			// as an initialized child, just run function
 			if unsafe{SANDCRUST_INITIALIZED_CHILD} {
 				$body
@@ -1516,7 +1517,7 @@ macro_rules! sandcrust_global_create_function {
 					sandcrust.await_return();
 					sandcrust.reset_shm_offset();
 					sandcrust_restore_changed_vars_global!(sandcrust, $($x)*);
-					sandcrust_collect_ret!($has_retval, $rettype, sandcrust)
+					sandcrust_collect_ret!($has_retval, $has_vec, $rettype, sandcrust)
 			}
 	};
 }
@@ -1577,28 +1578,40 @@ macro_rules! sandbox {
 		sandbox_internal!(has_ret, $f($($x)*))
 	}};
 	// (global-)wrap a function definition, transforming it
+	(pub fn $f:ident($($x:tt)*) -> Vec<u8> $body:block ) => {
+		sandcrust_global_create_wrapper!(has_ret, has_vec, fn $f($($x)*));
+		pub fn $f($($x)*) -> Vec<u8> {
+			sandcrust_global_create_function!(has_ret, has_vec, fn $f($($x)*) -> Vec<u8> $body)
+		}
+	};
 	(pub fn $f:ident($($x:tt)*) -> $rettype:ty $body:block ) => {
-		sandcrust_global_create_wrapper!(has_ret, $rettype, fn $f($($x)*));
+		sandcrust_global_create_wrapper!(has_ret, no_vec, fn $f($($x)*));
 		pub fn $f($($x)*) -> $rettype {
-			sandcrust_global_create_function!(has_ret, fn $f($($x)*) -> $rettype $body)
+			sandcrust_global_create_function!(has_ret, no_vec, fn $f($($x)*) -> $rettype $body)
 		}
 	};
 	(pub fn $f:ident($($x:tt)*) $body:block ) => {
-		sandcrust_global_create_wrapper!(no_ret, i32, fn $f($($x)*));
+		sandcrust_global_create_wrapper!(no_ret, no_vec, fn $f($($x)*));
 		pub fn $f($($x)*) {
-			sandcrust_global_create_function!(no_ret, i32, fn $f($($x)*) -> i32 $body)
+			sandcrust_global_create_function!(no_ret, no_vec, fn $f($($x)*) -> i32 $body)
+		}
+	};
+	(fn $f:ident($($x:tt)*) -> Vec<u8> $body:block ) => {
+		sandcrust_global_create_wrapper!(has_ret, has_vec, fn $f($($x)*));
+		fn $f($($x)*) -> Vec<u8> {
+			sandcrust_global_create_function!(has_ret, has_vec, fn $f($($x)*) -> Vec<u8> $body)
 		}
 	};
 	(fn $f:ident($($x:tt)*) -> $rettype:ty $body:block ) => {
-		sandcrust_global_create_wrapper!(has_ret, $rettype, fn $f($($x)*));
+		sandcrust_global_create_wrapper!(has_ret, no_vec, fn $f($($x)*));
 		fn $f($($x)*) -> $rettype {
-			sandcrust_global_create_function!(has_ret, fn $f($($x)*) -> $rettype $body)
+			sandcrust_global_create_function!(has_ret, no_vec, fn $f($($x)*) -> $rettype $body)
 		}
 	};
 	(fn $f:ident($($x:tt)*) $body:block ) => {
-		sandcrust_global_create_wrapper!(no_ret, i32, fn $f($($x)*));
+		sandcrust_global_create_wrapper!(no_ret, no_vec, fn $f($($x)*));
 		fn $f($($x)*) {
-			sandcrust_global_create_function!(no_ret, fn $f($($x)*) -> i32 $body)
+			sandcrust_global_create_function!(no_ret, no_vec, fn $f($($x)*) -> i32 $body)
 		}
 	};
 }
