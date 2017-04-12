@@ -40,7 +40,19 @@ sandbox!{
 	}
 }
 
+sandbox!{
+fn sandcrust_bincode(src: &Vec<u8>) -> Vec<u8> {
+	let refer = &src[..];
+	let new = refer.to_vec();
+	new
+}
+}
+
 fn main() {
+
+	let vector = vec![23u8; 42];
+	let new = sandcrust_bincode(&vector);
+	assert_eq!(vector, new);
 	Add();
 	println!("before init");
 	sandcrust_init();

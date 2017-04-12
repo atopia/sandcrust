@@ -309,6 +309,7 @@ impl Sandcrust {
 	#[cfg(feature = "shm")]
 	pub fn await_return(&mut self) {
 		let mut buf = [0; 4];
+		// FIXME
 		while self.file_out.read(&mut buf).expect("sandcrust: failed to read ready-signal") == 0 {
 		//	println!("sandcrust: FIXME awaiting return");
 		}
@@ -350,9 +351,9 @@ impl Sandcrust {
 	#[cfg(feature = "shm")]
 	pub fn get_func_ptr(&mut self) -> fn(&mut Sandcrust)  {
 		#[cfg(target_pointer_width = "32")]
-		let mut buf = [0; 4];
+		let mut buf = [0u8; 4];
 		#[cfg(target_pointer_width = "64")]
-		let mut buf = [0; 8];
+		let mut buf = [0u8; 8];
 		self.file_out.read_exact(&mut buf).expect("sandcrust: failed to read func ptr");
 		let func_ptr: *const u8 = unsafe { std::mem::transmute(buf) };
 		let func: fn(&mut Sandcrust) = unsafe { std::mem::transmute(func_ptr) };
@@ -419,6 +420,63 @@ impl Sandcrust {
 		self.shm_offset += ::bincode::serialized_size(&var) as usize;
 	}
 
+
+	/// Custom restore function for byte vectors.
+	#[cfg(feature = "shm")]
+	pub fn put_byte_vector(&mut self, vector: &Vec<u8>) {
+		let size = vector.capacity();
+
+		// check remaining memory
+		let remaining_mem: usize = self.shm.len() - self.shm_offset;
+		if remaining_mem < (size + 8) {
+			panic!("sandcrust: too little remaining memory to put vector");
+		}
+
+		let mut mem = unsafe { self.shm.as_mut_slice() };
+
+		// put size first
+		{
+			let size_u64 = size as u64;
+			let mut size_arr: [u8; 8] = unsafe{ std::mem::transmute(size_u64)};
+			let end = self.shm_offset + 8;
+			let mut window = &mut mem[self.shm_offset..end];
+			window.copy_from_slice(&size_arr);
+			self.shm_offset += 8;
+		}
+
+		// put data
+		let end = self.shm_offset + size;
+		let mut window = &mut mem[self.shm_offset..end];
+		window.copy_from_slice(&vector);
+		self.shm_offset += size;
+	}
+
+	/// Custom put function for byte vectors.
+	#[cfg(feature = "shm")]
+	pub fn restore_byte_vector(&mut self) -> Vec<u8> {
+		// restore size
+		let mut mem = unsafe { self.shm.as_mut_slice() };
+		let end = self.shm_offset + 8;
+		let window = &mem[self.shm_offset..end];
+		// necessary, because a slice is a pointer and a size
+		let mut size_arr: [u8; 8] = [0u8; 8];
+		size_arr.copy_from_slice(&window);
+		let size_u64: u64 = unsafe { std::mem::transmute(size_arr) };
+		let size = size_u64 as usize;
+
+		self.shm_offset += 8;
+
+		// fill new vector
+		let mut new_vec = vec![0u8; size];
+		{
+			let vec_slice = &mut new_vec[..];
+			let end = self.shm_offset + size;
+			let window = &mem[self.shm_offset..end];
+			vec_slice.copy_from_slice(window);
+		}
+		self.shm_offset += size;
+		new_vec
+	}
 
 	/// Send '0' command pointer to child loop, causing child to shut down, and collect the child's
     /// exit status.
@@ -578,6 +636,16 @@ macro_rules! sandcrust_restore_changed_vars_global {
 #[macro_export]
 #[cfg(feature = "shm")]
 macro_rules! sandcrust_restore_changed_vars_global {
+	/*
+	 * FIXME needs store var first
+	($sandcrust:ident, $head:ident : &mut Vec<u8>) => {
+		*$head = $sandcrust.restore_byte_vector();
+	};
+	($sandcrust:ident, $head:ident : &mut Vec<u8>, $($tail:tt)+) => {
+		*$head = $sandcrust.restore_byte_vector();
+		sandcrust_restore_changed_vars_global!($sandcrust, $($tail)+);
+	};
+	*/
 	($sandcrust:ident, $head:ident : &mut $typo:ty) => {
 		*$head = $sandcrust.restore_var();
 		$sandcrust.update_shm_offset($head);
@@ -606,6 +674,23 @@ macro_rules! sandcrust_restore_changed_vars_global {
 #[doc(hidden)]
 #[macro_export]
 macro_rules! sandcrust_push_function_args {
+	($sandcrust:ident, $head:ident : &mut Vec<u8>) => { $sandcrust.put_byte_vector(&*$head); };
+	($sandcrust:ident, $head:ident : &mut Vec<u8>, $($tail:tt)+) => {
+		$sandcrust.put_byte_vector(&*$head);
+		sandcrust_push_function_args!($sandcrust, $($tail)+);
+	};
+	($sandcrust:ident, $head:ident : &Vec<u8>) => { $sandcrust.put_byte_vector($head); };
+	($sandcrust:ident, $head:ident : &Vec<u8>, $($tail:tt)+) => {
+		$sandcrust.put_byte_vector($head);
+		sandcrust_push_function_args!($sandcrust, $($tail)+);
+	};
+	($sandcrust:ident, $head:ident : Vec<u8>, $($tail:tt)+) => {
+		$sandcrust.put_byte_vector($head);
+		sandcrust_push_function_args!($sandcrust, $($tail)+);
+	};
+	($sandcrust:ident, $head:ident : Vec<u8> ) => {
+		$sandcrust.put_byte_vector($head);
+	};
 	($sandcrust:ident, $head:ident : &mut $typo:ty) => { $sandcrust.put_var(&*$head); };
 	($sandcrust:ident, $head:ident : &mut $typo:ty, $($tail:tt)+) => {
 		$sandcrust.put_var(&*$head);
@@ -674,6 +759,34 @@ macro_rules! sandcrust_pull_function_args {
 #[macro_export]
 #[cfg(feature = "shm")]
 macro_rules! sandcrust_pull_function_args {
+	($sandcrust:ident, $head:ident : &mut Vec<u8>) => {
+		let mut $head: Vec<u8> = $sandcrust.restore_byte_vector();
+	};
+	($sandcrust:ident, $head:ident : &mut Vec<u8>, $($tail:tt)+) => {
+		let mut $head: Vec<u8> = $sandcrust.restore_byte_vector();
+		sandcrust_pull_function_args!($sandcrust, $($tail)+);
+	};
+	($sandcrust:ident, $head:ident : &Vec<u8>) => {
+		let $head: Vec<u8> = $sandcrust.restore_byte_vector();
+	};
+	($sandcrust:ident, $head:ident : &Vec<u8>, $($tail:tt)+) => {
+		let $head: Vec<u8> = $sandcrust.restore_byte_vector();
+		sandcrust_pull_function_args!($sandcrust, $($tail)+);
+	};
+	($sandcrust:ident, $head:ident : mut Vec<u8>) => {
+		let mut $head: Vec<u8> = $sandcrust.restore_byte_vector();
+	};
+	($sandcrust:ident, $head:ident : mut Vec<u8>, $($tail:tt)+) => {
+		let mut $head: Vec<u8> = $sandcrust.restore_byte_vector();
+		sandcrust_pull_function_args!($sandcrust, $($tail)+);
+	};
+	($sandcrust:ident, $head:ident : Vec<u8>) => {
+		let $head: Vec<u8> = $sandcrust.restore_byte_vector();
+	};
+	($sandcrust:ident, $head:ident : Vec<u8>, $($tail:tt)+) => {
+		let $head: Vec<u8> = $sandcrust.restore_byte_vector();
+		sandcrust_pull_function_args!($sandcrust, $($tail)+);
+	};
 	($sandcrust:ident, $head:ident : &mut $typo:ty) => {
 		let mut $head: $typo = $sandcrust.restore_var();
 		$sandcrust.update_shm_offset($head);
