@@ -306,18 +306,15 @@ impl Sandcrust {
 	/// Wait for return signal from child.
 	#[cfg(feature = "shm")]
 	pub fn await_return(&mut self) {
-		let mut buf = [0; 4];
-		// FIXME
-		while self.file_out.read(&mut buf).expect("sandcrust: failed to read ready-signal") == 0 {
-		//	println!("sandcrust: FIXME awaiting return");
-		}
+		let mut buf = [0u8];
+		let _ = self.file_out.read(&mut buf).expect("sandcrust: failed to read ready-signal");
 	}
 
 
 	/// Signal sucessful IPC return to parent.
 	#[cfg(feature = "shm")]
 	pub fn signal_return(&mut self) {
-		let _ = self.file_in.write_all(b"1312").expect("sandcrust: ready-signal write failed");
+		let _ = self.file_in.write_all(b"1").expect("sandcrust: ready-signal write failed");
 	}
 
 	/// Transmit function pointer to child.
