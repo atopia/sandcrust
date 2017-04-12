@@ -399,7 +399,7 @@ impl Sandcrust {
 	/// Custom restore function for byte vectors.
 	#[cfg(all(feature = "custom_vec", not(feature = "shm")))]
 	pub fn put_byte_vector(&mut self, vector: &Vec<u8>) {
-		let size = vector.capacity();
+		let size = vector.len();
 
 		// put size first
 		let size_u64 = size as u64;
@@ -413,7 +413,7 @@ impl Sandcrust {
 	/// Custom restore function for byte vectors.
 	#[cfg(all(feature = "custom_vec", feature = "shm"))]
 	pub fn put_byte_vector(&mut self, vector: &Vec<u8>) {
-		let size = vector.capacity();
+		let size = vector.len();
 
 		// check remaining memory
 		let remaining_mem: usize = self.shm.len() - self.shm_offset;
