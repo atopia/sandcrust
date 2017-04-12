@@ -554,9 +554,9 @@ impl Sandcrust {
 #[macro_export]
 #[cfg(not(feature = "custom_vec"))]
 macro_rules! sandcrust_store_changed_vars_global {
-	($sandcrust:ident, $head:ident : &mut $typo:ty) => { $sandcrust.put_var(&*$head); };
+	($sandcrust:ident, $head:ident : &mut $typo:ty) => { $sandcrust.put_var(&$head); };
 	($sandcrust:ident, $head:ident : &mut $typo:ty, $($tail:tt)+) => {
-		$sandcrust.put_var(&*$head);
+		$sandcrust.put_var(&$head);
 		sandcrust_store_changed_vars_global!($sandcrust, $($tail)+);
 	};
 	($sandcrust:ident, $head:ident : &$typo:ty) => { };
@@ -580,14 +580,14 @@ macro_rules! sandcrust_store_changed_vars_global {
 #[macro_export]
 #[cfg(feature = "custom_vec")]
 macro_rules! sandcrust_store_changed_vars_global {
-	($sandcrust:ident, $head:ident : &mut Vec<u8>) => { $sandcrust.put_byte_vector(&*$head); };
+	($sandcrust:ident, $head:ident : &mut Vec<u8>) => { $sandcrust.put_byte_vector(&$head); };
 	($sandcrust:ident, $head:ident : &mut Vec<u8>, $($tail:tt)+) => {
-		$sandcrust.put_byte_vector(&*$head);
+		$sandcrust.put_byte_vector(&$head);
 		sandcrust_store_changed_vars_global!($sandcrust, $($tail)+);
 	};
-	($sandcrust:ident, $head:ident : &mut $typo:ty) => { $sandcrust.put_var(&*$head); };
+	($sandcrust:ident, $head:ident : &mut $typo:ty) => { $sandcrust.put_var(&$head); };
 	($sandcrust:ident, $head:ident : &mut $typo:ty, $($tail:tt)+) => {
-		$sandcrust.put_var(&*$head);
+		$sandcrust.put_var(&$head);
 		sandcrust_store_changed_vars_global!($sandcrust, $($tail)+);
 	};
 	($sandcrust:ident, $head:ident : &$typo:ty) => { };
