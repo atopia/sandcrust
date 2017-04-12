@@ -29,6 +29,7 @@ path = "../sandheap"
 [features]
 auto_respawn = []
 shm = ["memmap"]
+custom_vec = []
 
 [lib]
 name = "sandcrust"
