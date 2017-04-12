@@ -1125,9 +1125,50 @@ macro_rules! sandcrust_pull_function_args {
 /// Run function, gathering return value if available.
 #[doc(hidden)]
 #[macro_export]
-#[cfg(not(feature = "shm"))]
+#[cfg(all(not(feature = "shm"), not(feature = "custom_vec")))]
 macro_rules! sandcrust_run_func_global {
-	(has_ret, Vec<u8>, $sandcrust:ident, $f:ident($($x:tt)*)) => {
+	(has_ret, $rettype:ty, $sandcrust:ident, $f:ident($($x:tt)*)) => {
+		let retval = sandcrust_strip_types!($f($($x)*));
+		sandcrust_store_changed_vars_global!($sandcrust, $($x)*);
+		$sandcrust.put_var(&retval);
+		$sandcrust.flush_pipe();
+	};
+	(no_ret, $rettype:ty, $sandcrust:ident, $f:ident($($x:tt)*)) => {
+		sandcrust_strip_types!($f($($x)*));
+		sandcrust_store_changed_vars_global!($sandcrust, $($x)*);
+		$sandcrust.flush_pipe();
+	};
+}
+
+/// Run function, gathering return value if available.
+#[doc(hidden)]
+#[macro_export]
+#[cfg(all(feature = "shm", not(feature = "custom_vec")))]
+macro_rules! sandcrust_run_func_global {
+	(has_ret, $rettype:ty, $sandcrust:ident, $f:ident($($x:tt)*)) => {
+		let retval = sandcrust_strip_types!($f($($x)*));
+		$sandcrust.reset_shm_offset();
+		sandcrust_store_changed_vars_global!($sandcrust, $($x)*);
+		$sandcrust.put_var(&retval);
+		$sandcrust.signal_return();
+		$sandcrust.reset_shm_offset();
+
+	};
+	(no_ret, $rettype:ty, $sandcrust:ident, $f:ident($($x:tt)*)) => {
+		sandcrust_strip_types!($f($($x)*));
+		$sandcrust.reset_shm_offset();
+		sandcrust_store_changed_vars_global!($sandcrust, $($x)*);
+		$sandcrust.signal_return();
+	};
+}
+
+
+/// Run function, gathering return value if available.
+#[doc(hidden)]
+#[macro_export]
+#[cfg(all(not(feature = "shm"), feature = "custom_vec"))]
+macro_rules! sandcrust_run_func_global {
+	(has_ret, has_vec, $sandcrust:ident, $f:ident($($x:tt)*)) => {
 		let retval = sandcrust_strip_types!($f($($x)*));
 		sandcrust_store_changed_vars_global!($sandcrust, $($x)*);
 		$sandcrust.put_byte_vector(&retval);
@@ -1149,7 +1190,7 @@ macro_rules! sandcrust_run_func_global {
 /// Run function, gathering return value if available.
 #[doc(hidden)]
 #[macro_export]
-#[cfg(feature = "shm")]
+#[cfg(all(feature = "shm", feature = "custom_vec"))]
 macro_rules! sandcrust_run_func_global {
 	(has_ret, Vec<u8>, $sandcrust:ident, $f:ident($($x:tt)*)) => {
 		let retval = sandcrust_strip_types!($f($($x)*));
