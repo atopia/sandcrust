@@ -1209,6 +1209,7 @@ macro_rules! sandcrust_run_func {
 	};
 }
 
+
 /// Run function, gathering return value if available.
 #[doc(hidden)]
 #[macro_export]
@@ -1235,7 +1236,7 @@ macro_rules! sandcrust_run_func {
 /// Collect return value in parent, if available.
 #[doc(hidden)]
 #[macro_export]
-#[cfg(not(feature = "shm"))]
+#[cfg(all(feature = "custom_vec", not(feature = "shm")))]
 macro_rules! sandcrust_collect_ret {
 	(has_ret, has_vec, $rettype:ty , $sandcrust:ident) => {{
 		let retval: $rettype = $sandcrust.restore_byte_vector();
@@ -1261,10 +1262,65 @@ macro_rules! sandcrust_collect_ret {
 /// Collect return value in parent, if available.
 #[doc(hidden)]
 #[macro_export]
-#[cfg(feature = "shm")]
+#[cfg(all(feature = "custom_vec", feature = "shm"))]
 macro_rules! sandcrust_collect_ret {
 	(has_ret, has_vec, $rettype:ty , $sandcrust:ident) => {{
 		let retval: $rettype = $sandcrust.restore_byte_vector();
+		$sandcrust.reset_shm_offset();
+		retval
+	}};
+	(no_ret, no_vec, $rettype:ty, $sandcrust:ident) => { () };
+	(has_ret, no_vec,  $rettype:ty, $sandcrust:ident) => {{
+		let retval: $rettype = $sandcrust.restore_var();
+		$sandcrust.reset_shm_offset();
+		retval
+	}};
+	(no_ret, no_vec,  $rettype:ty, $sandcrust:ident) => { () };
+	(has_ret, $sandcrust:ident) => {{
+		let retval = $sandcrust.restore_var();
+		$sandcrust.reset_shm_offset();
+		$sandcrust.join_child();
+		retval
+	}};
+	(no_ret, $sandcrust:ident) => {
+		$sandcrust.join_child();
+	};
+}
+
+
+/// Collect return value in parent, if available.
+#[doc(hidden)]
+#[macro_export]
+#[cfg(all(not(feature = "custom_vec"), not(feature = "shm")))]
+macro_rules! sandcrust_collect_ret {
+	(has_ret, has_vec, $rettype:ty , $sandcrust:ident) => {{
+		let retval: $rettype = $sandcrust.restore_var();
+		retval
+	}};
+	(no_ret, no_vec, $rettype:ty, $sandcrust:ident) => { () };
+	(has_ret, no_vec,  $rettype:ty, $sandcrust:ident) => {{
+		let retval: $rettype = $sandcrust.restore_var();
+		retval
+	}};
+	(no_ret, no_vec,  $rettype:ty, $sandcrust:ident) => { () };
+	(has_ret, $sandcrust:ident) => {{
+		let retval = $sandcrust.restore_var();
+		$sandcrust.join_child();
+		retval
+	}};
+	(no_ret, $sandcrust:ident) => {
+		$sandcrust.join_child();
+	};
+}
+
+
+/// Collect return value in parent, if available.
+#[doc(hidden)]
+#[macro_export]
+#[cfg(all(not(feature = "custom_vec"), feature = "shm"))]
+macro_rules! sandcrust_collect_ret {
+	(has_ret, has_vec, $rettype:ty , $sandcrust:ident) => {{
+		let retval: $rettype = $sandcrust.restore_var();
 		$sandcrust.reset_shm_offset();
 		retval
 	}};
