@@ -41,9 +41,9 @@ sandbox!{
 }
 
 sandbox!{
-fn sandcrust_bincode(src: &Vec<u8>) -> Vec<u8> {
-	let refer = &src[..];
-	let new = refer.to_vec();
+fn sandcrust_bincode(src: &[u8]) -> Vec<u8> {
+	//let refer = &src[..];
+	let new = src.to_vec();
 	new
 }
 }

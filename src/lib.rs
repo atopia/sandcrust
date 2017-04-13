@@ -395,7 +395,7 @@ impl Sandcrust {
 
 	/// Custom restore function for byte vectors.
 	#[cfg(all(feature = "custom_vec", not(feature = "shm")))]
-	pub fn put_byte_vector(&mut self, vector: &Vec<u8>) {
+	pub fn put_byte_vector(&mut self, vector: &[u8]) {
 		let size = vector.len();
 
 		// put size first
@@ -409,7 +409,7 @@ impl Sandcrust {
 
 	/// Custom restore function for byte vectors.
 	#[cfg(all(feature = "custom_vec", feature = "shm"))]
-	pub fn put_byte_vector(&mut self, vector: &Vec<u8>) {
+	pub fn put_byte_vector(&mut self, vector: &[u8]) {
 		let size = vector.len();
 
 		// check remaining memory
@@ -830,6 +830,16 @@ macro_rules! sandcrust_push_function_args {
 #[macro_export]
 #[cfg(feature = "custom_vec")]
 macro_rules! sandcrust_push_function_args {
+	($sandcrust:ident, $head:ident : &mut [u8]) => { $sandcrust.put_byte_vector(&*$head); };
+	($sandcrust:ident, $head:ident : &mut [u8], $($tail:tt)+) => {
+		$sandcrust.put_byte_vector(&*$head);
+		sandcrust_push_function_args!($sandcrust, $($tail)+);
+	};
+	($sandcrust:ident, $head:ident : &[u8]) => { $sandcrust.put_byte_vector($head); };
+	($sandcrust:ident, $head:ident : &[u8], $($tail:tt)+) => {
+		$sandcrust.put_byte_vector($head);
+		sandcrust_push_function_args!($sandcrust, $($tail)+);
+	};
 	($sandcrust:ident, $head:ident : &mut Vec<u8>) => { $sandcrust.put_byte_vector(&*$head); };
 	($sandcrust:ident, $head:ident : &mut Vec<u8>, $($tail:tt)+) => {
 		$sandcrust.put_byte_vector(&*$head);
@@ -876,7 +886,7 @@ macro_rules! sandcrust_push_function_args {
 /// Pull function arguments in global client.
 #[doc(hidden)]
 #[macro_export]
-#[cfg(not(feature = "shm"))]
+#[cfg(all(not(feature = "custom_vec"), not(feature = "shm")))]
 macro_rules! sandcrust_pull_function_args {
 	($sandcrust:ident, $head:ident : &mut $typo:ty) => {
 		let mut $head: $typo = $sandcrust.restore_var();
@@ -916,6 +926,20 @@ macro_rules! sandcrust_pull_function_args {
 #[macro_export]
 #[cfg(all(feature = "custom_vec", not(feature = "shm")))]
 macro_rules! sandcrust_pull_function_args {
+	($sandcrust:ident, $head:ident : &mut [u8]) => {
+		let mut $head: Vec<u8> = $sandcrust.restore_byte_vector();
+	};
+	($sandcrust:ident, $head:ident : &mut [u8],  $($tail:tt)+) => {
+		let mut $head: Vec<u8> = $sandcrust.restore_byte_vector();
+		sandcrust_pull_function_args!($sandcrust, $($tail)+);
+	};
+	($sandcrust:ident, $head:ident : &[u8]) => {
+		let $head: Vec<u8> = $sandcrust.restore_byte_vector();
+	};
+	($sandcrust:ident, $head:ident : &[u8], $($tail:tt)+) => {
+		let $head: Vec<u8> = $sandcrust.restore_byte_vector();
+		sandcrust_pull_function_args!($sandcrust, $($tail)+);
+	};
 	($sandcrust:ident, $head:ident : &mut Vec<u8>) => {
 		let mut $head: Vec<u8> = $sandcrust.restore_byte_vector();
 	};
@@ -981,6 +1005,20 @@ macro_rules! sandcrust_pull_function_args {
 #[macro_export]
 #[cfg(all(feature = "custom_vec", feature = "shm"))]
 macro_rules! sandcrust_pull_function_args {
+	($sandcrust:ident, $head:ident : &mut [u8]) => {
+		let mut $head: Vec<u8> = $sandcrust.restore_byte_vector();
+	};
+	($sandcrust:ident, $head:ident : &mut [u8], $($tail:tt)+) => {
+		let mut $head: Vec<u8> = $sandcrust.restore_byte_vector();
+		sandcrust_pull_function_args!($sandcrust, $($tail)+);
+	};
+	($sandcrust:ident, $head:ident : &[u8]) => {
+		let $head: Vec<u8> = $sandcrust.restore_byte_vector();
+	};
+	($sandcrust:ident, $head:ident : &[u8], $($tail:tt)+) => {
+		let $head: Vec<u8> = $sandcrust.restore_byte_vector();
+		sandcrust_pull_function_args!($sandcrust, $($tail)+);
+	};
 	($sandcrust:ident, $head:ident : &mut Vec<u8>) => {
 		let mut $head: Vec<u8> = $sandcrust.restore_byte_vector();
 	};
@@ -1052,7 +1090,7 @@ macro_rules! sandcrust_pull_function_args {
 /// Pull function arguments in global client.
 #[doc(hidden)]
 #[macro_export]
-#[cfg(feature = "shm")]
+#[cfg(all(not(feature = "custom_vec"), feature = "shm"))]
 macro_rules! sandcrust_pull_function_args {
 	($sandcrust:ident, $head:ident : &mut $typo:ty) => {
 		let mut $head: $typo = $sandcrust.restore_var();
