@@ -1092,11 +1092,11 @@ macro_rules! sandcrust_pull_function_args {
 macro_rules! sandcrust_pull_function_args {
 	($sandcrust:ident, $head:ident : &mut $typo:ty) => {
 		let mut $head: $typo = $sandcrust.restore_var();
-		$sandcrust.update_shm_offset($head);
+		$sandcrust.update_shm_offset(&$head);
 	};
 	($sandcrust:ident, $head:ident : &mut $typo:ty, $($tail:tt)+) => {
 		let mut $head: $typo = $sandcrust.restore_var();
-		$sandcrust.update_shm_offset($head);
+		$sandcrust.update_shm_offset(&$head);
 		sandcrust_pull_function_args!($sandcrust, $($tail)+);
 	};
 	($sandcrust:ident, $head:ident : &$typo:ty) => {
