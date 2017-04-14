@@ -701,11 +701,9 @@ macro_rules! sandcrust_restore_changed_vars_global {
 macro_rules! sandcrust_restore_changed_vars_global {
 	($sandcrust:ident, $head:ident : &mut Vec<u8>) => {
 		*$head = $sandcrust.restore_byte_vector();
-		$sandcrust.update_shm_offset($head);
 	};
 	($sandcrust:ident, $head:ident : &mut Vec<u8>, $($tail:tt)+) => {
 		*$head = $sandcrust.restore_byte_vector();
-		$sandcrust.update_shm_offset($head);
 		sandcrust_restore_changed_vars_global!($sandcrust, $($tail)+);
 	};
 	($sandcrust:ident, $head:ident : &mut $typo:ty) => {
