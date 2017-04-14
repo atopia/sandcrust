@@ -855,6 +855,13 @@ macro_rules! sandcrust_push_function_args {
 	($sandcrust:ident, $head:ident : Vec<u8> ) => {
 		$sandcrust.put_byte_vector(&$head);
 	};
+	($sandcrust:ident, mut $head:ident : Vec<u8>, $($tail:tt)+) => {
+		$sandcrust.put_byte_vector(&$head);
+		sandcrust_push_function_args!($sandcrust, $($tail)+);
+	};
+	($sandcrust:ident, mut $head:ident : Vec<u8> ) => {
+		$sandcrust.put_byte_vector(&$head);
+	};
 	($sandcrust:ident, $head:ident : &mut $typo:ty) => { $sandcrust.put_var(&*$head); };
 	($sandcrust:ident, $head:ident : &mut $typo:ty, $($tail:tt)+) => {
 		$sandcrust.put_var(&*$head);
@@ -952,10 +959,10 @@ macro_rules! sandcrust_pull_function_args {
 		let $head: Vec<u8> = $sandcrust.restore_byte_vector();
 		sandcrust_pull_function_args!($sandcrust, $($tail)+);
 	};
-	($sandcrust:ident, $head:ident : mut Vec<u8>) => {
+	($sandcrust:ident, mut $head:ident : Vec<u8>) => {
 		let mut $head: Vec<u8> = $sandcrust.restore_byte_vector();
 	};
-	($sandcrust:ident, $head:ident : mut Vec<u8>, $($tail:tt)+) => {
+	($sandcrust:ident, mut $head:ident : Vec<u8>, $($tail:tt)+) => {
 		let mut $head: Vec<u8> = $sandcrust.restore_byte_vector();
 		sandcrust_pull_function_args!($sandcrust, $($tail)+);
 	};
@@ -1031,10 +1038,10 @@ macro_rules! sandcrust_pull_function_args {
 		let $head: Vec<u8> = $sandcrust.restore_byte_vector();
 		sandcrust_pull_function_args!($sandcrust, $($tail)+);
 	};
-	($sandcrust:ident, $head:ident : mut Vec<u8>) => {
+	($sandcrust:ident, mut $head:ident : Vec<u8>) => {
 		let mut $head: Vec<u8> = $sandcrust.restore_byte_vector();
 	};
-	($sandcrust:ident, $head:ident : mut Vec<u8>, $($tail:tt)+) => {
+	($sandcrust:ident, mut $head:ident : Vec<u8>, $($tail:tt)+) => {
 		let mut $head: Vec<u8> = $sandcrust.restore_byte_vector();
 		sandcrust_pull_function_args!($sandcrust, $($tail)+);
 	};
