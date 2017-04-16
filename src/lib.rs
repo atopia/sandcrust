@@ -1392,25 +1392,17 @@ macro_rules! sandcrust_collect_ret {
 #[doc(hidden)]
 #[macro_export]
 macro_rules! sandcrust_strip_types {
-	(($head:ident : &mut $var_type:ty, $($tail:tt)+) -> ($f:ident($($body:tt)+))) => (sandcrust_strip_types!(($($tail)+) -> ($f($($body)+, &mut $head))));
-	(($head:ident : &mut $var_type:ty, $($tail:tt)+) -> ($f:ident())) => (sandcrust_strip_types!(($($tail)+) -> ($f(&mut $head))));
-	(($head:ident : &mut $var_type:ty) -> ($f:ident($($body:tt)+))) => ($f($($body)+, &mut $head));
-	(($head:ident : &mut $var_type:ty) -> ($f:ident())) => ($f(&mut $head));
+	(($head:ident : &mut $var_type:ty, $($tail:tt)+) -> ($f:ident($($body:tt)*))) => (sandcrust_strip_types!(($($tail)+) -> ($f($($body)* &mut $head,))));
+	(($head:ident : &mut $var_type:ty) -> ($f:ident($($body:tt)*))) => ($f($($body)* &mut $head));
 
-	(($head:ident : &$var_type:ty, $($tail:tt)+) -> ($f:ident($($body:tt)+))) => (sandcrust_strip_types!(($($tail)+) -> ($f($($body)+, &$head))));
-	(($head:ident : &$var_type:ty, $($tail:tt)+) -> ($f:ident())) => (sandcrust_strip_types!(($($tail)+) -> ($f(&$head))));
-	(($head:ident : &$var_type:ty) -> ($f:ident($($body:tt)+))) => ($f($($body)+, &$head));
-	(($head:ident : &$var_type:ty) -> ($f:ident())) => ($f(&$head));
+	(($head:ident : &$var_type:ty, $($tail:tt)+) -> ($f:ident($($body:tt)*))) => (sandcrust_strip_types!(($($tail)+) -> ($f($($body)* &$head,))));
+	(($head:ident : &$var_type:ty) -> ($f:ident($($body:tt)*))) => ($f($($body)*  &$head));
 
-	((mut $head:ident : $var_type:ty, $($tail:tt)+) -> ($f:ident($($body:tt)+))) => (sandcrust_strip_types!(($($tail)+) -> ($f($($body)+, mut $head))));
-	((mut $head:ident : $var_type:ty, $($tail:tt)+) -> ($f:ident())) => (sandcrust_strip_types!(($($tail)+) -> ($f(mut $head))));
-	((mut $head:ident : $var_type:ty) -> ($f:ident($($body:tt)+))) => ($f($($body)+, $head));
-	((mut $head:ident : $var_type:ty) -> ($f:ident())) => ($f($head));
+	((mut $head:ident : $var_type:ty, $($tail:tt)+) -> ($f:ident($($body:tt)*))) => (sandcrust_strip_types!(($($tail)+) -> ($f($($body)* mut $head,))));
+	((mut $head:ident : $var_type:ty) -> ($f:ident($($body:tt)*))) => ($f($($body)* $head));
 
-	(($head:ident : $var_type:ty, $($tail:tt)+) -> ($f:ident($($body:tt)+))) => (sandcrust_strip_types!(($($tail)+) -> ($f($($body)+, $head))));
-	(($head:ident : $var_type:ty, $($tail:tt)+) -> ($f:ident())) => (sandcrust_strip_types!(($($tail)+) -> ($f($head))));
-	(($head:ident : $var_type:ty) -> ($f:ident($($body:tt)+))) => ($f($($body)+, $head));
-	(($head:ident : $var_type:ty) -> ($f:ident())) => ($f($head));
+	(($head:ident : $var_type:ty, $($tail:tt)+) -> ($f:ident($($body:tt)*))) => (sandcrust_strip_types!(($($tail)+) -> ($f($($body)* $head,))));
+	(($head:ident : $var_type:ty) -> ($f:ident($($body:tt)*))) => ($f($($body)* $head));
 
 	($f:ident($($tail:tt)+)) => (sandcrust_strip_types!(($($tail)+) -> ($f())));
 	($f:ident()) => ($f());
