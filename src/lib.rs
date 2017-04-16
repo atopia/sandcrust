@@ -322,11 +322,9 @@ impl Sandcrust {
 		unsafe {
 			let func_ptr: *const u8 = ::std::mem::transmute(func);
 			#[cfg(target_pointer_width = "32")]
-			let buf: [u8; 4] = unsafe{ std::mem::transmute(func_ptr)};
-			//let buf = std::slice::from_raw_parts(func_ptr, 4);
+			let buf: [u8; 4] = std::mem::transmute(func_ptr);
 			#[cfg(target_pointer_width = "64")]
 			let buf: [u8; 8] = std::mem::transmute(func_ptr);
-			//let buf = std::slice::from_raw_parts(func_ptr, 8);
 			let _ = self.file_in.write_all(&buf).expect("sandcrust: failed to send func ptr");
 		}
 	}
