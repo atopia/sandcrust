@@ -524,21 +524,21 @@ impl Sandcrust {
 #[macro_export]
 #[cfg(not(feature = "custom_vec"))]
 macro_rules! sandcrust_store_changed_vars_global {
-	($sandcrust:ident, $head:ident : &mut $typo:ty) => { $sandcrust.put_var(&$head); };
-	($sandcrust:ident, $head:ident : &mut $typo:ty, $($tail:tt)+) => {
+	($sandcrust:ident, $head:ident : &mut $var_type:ty) => { $sandcrust.put_var(&$head); };
+	($sandcrust:ident, $head:ident : &mut $var_type:ty, $($tail:tt)+) => {
 		$sandcrust.put_var(&$head);
 		sandcrust_store_changed_vars_global!($sandcrust, $($tail)+);
 	};
-	($sandcrust:ident, $head:ident : &$typo:ty) => { };
-	($sandcrust:ident, $head:ident : &$typo:ty, $($tail:tt)+) => {
+	($sandcrust:ident, $head:ident : &$var_type:ty) => { };
+	($sandcrust:ident, $head:ident : &$var_type:ty, $($tail:tt)+) => {
 		sandcrust_store_changed_vars_global!($sandcrust, $($tail)+);
 	};
-	($sandcrust:ident, $head:ident : $typo:ty, $($tail:tt)+) => {
+	($sandcrust:ident, $head:ident : $var_type:ty, $($tail:tt)+) => {
 		sandcrust_store_changed_vars_global!($sandcrust, $($tail)+);
 	};
-	($sandcrust:ident, $head:ident : $typo:ty ) => { };
-	($sandcrust:ident, mut $head:ident : $typo:ty ) => { };
-	($sandcrust:ident, mut $head:ident : $typo:ty, $($tail:tt)+) => {
+	($sandcrust:ident, $head:ident : $var_type:ty ) => { };
+	($sandcrust:ident, mut $head:ident : $var_type:ty ) => { };
+	($sandcrust:ident, mut $head:ident : $var_type:ty, $($tail:tt)+) => {
 		sandcrust_store_changed_vars_global!($sandcrust, $($tail)+);
 	};
 	($sandcrust:ident, ) => {};
@@ -555,21 +555,21 @@ macro_rules! sandcrust_store_changed_vars_global {
 		$sandcrust.put_byte_vector(&$head);
 		sandcrust_store_changed_vars_global!($sandcrust, $($tail)+);
 	};
-	($sandcrust:ident, $head:ident : &mut $typo:ty) => { $sandcrust.put_var(&$head); };
-	($sandcrust:ident, $head:ident : &mut $typo:ty, $($tail:tt)+) => {
+	($sandcrust:ident, $head:ident : &mut $var_type:ty) => { $sandcrust.put_var(&$head); };
+	($sandcrust:ident, $head:ident : &mut $var_type:ty, $($tail:tt)+) => {
 		$sandcrust.put_var(&$head);
 		sandcrust_store_changed_vars_global!($sandcrust, $($tail)+);
 	};
-	($sandcrust:ident, $head:ident : &$typo:ty) => { };
-	($sandcrust:ident, $head:ident : &$typo:ty, $($tail:tt)+) => {
+	($sandcrust:ident, $head:ident : &$var_type:ty) => { };
+	($sandcrust:ident, $head:ident : &$var_type:ty, $($tail:tt)+) => {
 		sandcrust_store_changed_vars_global!($sandcrust, $($tail)+);
 	};
-	($sandcrust:ident, $head:ident : $typo:ty, $($tail:tt)+) => {
+	($sandcrust:ident, $head:ident : $var_type:ty, $($tail:tt)+) => {
 		sandcrust_store_changed_vars_global!($sandcrust, $($tail)+);
 	};
-	($sandcrust:ident, $head:ident : $typo:ty ) => { };
-	($sandcrust:ident, mut $head:ident : $typo:ty ) => { };
-	($sandcrust:ident, mut $head:ident : $typo:ty, $($tail:tt)+) => {
+	($sandcrust:ident, $head:ident : $var_type:ty ) => { };
+	($sandcrust:ident, mut $head:ident : $var_type:ty ) => { };
+	($sandcrust:ident, mut $head:ident : $var_type:ty, $($tail:tt)+) => {
 		sandcrust_store_changed_vars_global!($sandcrust, $($tail)+);
 	};
 	($sandcrust:ident, ) => {};
@@ -666,25 +666,25 @@ macro_rules! sandcrust_restore_changed_vars_global {
 		*$head = $sandcrust.restore_byte_vector();
 		sandcrust_restore_changed_vars_global!($sandcrust, $($tail)+);
 	};
-	($sandcrust:ident, $head:ident : &mut $typo:ty) => {
+	($sandcrust:ident, $head:ident : &mut $var_type:ty) => {
 		*$head = $sandcrust.restore_var();
 	};
-	($sandcrust:ident, $head:ident : &mut $typo:ty, $($tail:tt)+) => {
+	($sandcrust:ident, $head:ident : &mut $var_type:ty, $($tail:tt)+) => {
 		*$head = $sandcrust.restore_var();
 		sandcrust_restore_changed_vars_global!($sandcrust, $($tail)+);
 	};
-	($sandcrust:ident, $head:ident : &$typo:ty) => { };
-	($sandcrust:ident, $head:ident : &$typo:ty, $($tail:tt)+) => {
+	($sandcrust:ident, $head:ident : &$var_type:ty) => { };
+	($sandcrust:ident, $head:ident : &$var_type:ty, $($tail:tt)+) => {
 		sandcrust_restore_changed_vars_global!($sandcrust, $($tail)+);
 	};
-	($sandcrust:ident, $head:ident : $typo:ty, $($tail:tt)+) => {
+	($sandcrust:ident, $head:ident : $var_type:ty, $($tail:tt)+) => {
 		sandcrust_restore_changed_vars_global!($sandcrust, $($tail)+);
 	};
-	($sandcrust:ident, mut $head:ident : $typo:ty ) => { };
-	($sandcrust:ident, mut $head:ident : $typo:ty, $($tail:tt)+) => {
+	($sandcrust:ident, mut $head:ident : $var_type:ty ) => { };
+	($sandcrust:ident, mut $head:ident : $var_type:ty, $($tail:tt)+) => {
 		sandcrust_restore_changed_vars_global!($sandcrust, $($tail)+);
 	};
-	($sandcrust:ident, $head:ident : $typo:ty ) => { };
+	($sandcrust:ident, $head:ident : $var_type:ty ) => { };
 	($sandcrust:ident, ) => {};
 }
 
@@ -704,27 +704,27 @@ macro_rules! sandcrust_restore_changed_vars_global {
 		*$head = $sandcrust.restore_byte_vector();
 		sandcrust_restore_changed_vars_global!($sandcrust, $($tail)+);
 	};
-	($sandcrust:ident, $head:ident : &mut $typo:ty) => {
+	($sandcrust:ident, $head:ident : &mut $var_type:ty) => {
 		*$head = $sandcrust.restore_var();
 		$sandcrust.update_shm_offset($head);
 	};
-	($sandcrust:ident, $head:ident : &mut $typo:ty, $($tail:tt)+) => {
+	($sandcrust:ident, $head:ident : &mut $var_type:ty, $($tail:tt)+) => {
 		*$head = $sandcrust.restore_var();
 		$sandcrust.update_shm_offset($head);
 		sandcrust_restore_changed_vars_global!($sandcrust, $($tail)+);
 	};
-	($sandcrust:ident, $head:ident : &$typo:ty) => { };
-	($sandcrust:ident, $head:ident : &$typo:ty, $($tail:tt)+) => {
+	($sandcrust:ident, $head:ident : &$var_type:ty) => { };
+	($sandcrust:ident, $head:ident : &$var_type:ty, $($tail:tt)+) => {
 		sandcrust_restore_changed_vars_global!($sandcrust, $($tail)+);
 	};
-	($sandcrust:ident, $head:ident : $typo:ty, $($tail:tt)+) => {
+	($sandcrust:ident, $head:ident : $var_type:ty, $($tail:tt)+) => {
 		sandcrust_restore_changed_vars_global!($sandcrust, $($tail)+);
 	};
-	($sandcrust:ident, mut $head:ident : $typo:ty ) => { };
-	($sandcrust:ident, mut $head:ident : $typo:ty, $($tail:tt)+) => {
+	($sandcrust:ident, mut $head:ident : $var_type:ty ) => { };
+	($sandcrust:ident, mut $head:ident : $var_type:ty, $($tail:tt)+) => {
 		sandcrust_restore_changed_vars_global!($sandcrust, $($tail)+);
 	};
-	($sandcrust:ident, $head:ident : $typo:ty ) => { };
+	($sandcrust:ident, $head:ident : $var_type:ty ) => { };
 	($sandcrust:ident, ) => {};
 }
 /// Restore potentially changed vars from pipe in the parent after IPC call.
@@ -735,25 +735,25 @@ macro_rules! sandcrust_restore_changed_vars_global {
 #[macro_export]
 #[cfg(all(not(feature = "shm"), not(feature = "custom_vec")))]
 macro_rules! sandcrust_restore_changed_vars_global {
-	($sandcrust:ident, $head:ident : &mut $typo:ty) => {
+	($sandcrust:ident, $head:ident : &mut $var_type:ty) => {
 		*$head = $sandcrust.restore_var();
 	};
-	($sandcrust:ident, $head:ident : &mut $typo:ty, $($tail:tt)+) => {
+	($sandcrust:ident, $head:ident : &mut $var_type:ty, $($tail:tt)+) => {
 		*$head = $sandcrust.restore_var();
 		sandcrust_restore_changed_vars_global!($sandcrust, $($tail)+);
 	};
-	($sandcrust:ident, $head:ident : &$typo:ty) => { };
-	($sandcrust:ident, $head:ident : &$typo:ty, $($tail:tt)+) => {
+	($sandcrust:ident, $head:ident : &$var_type:ty) => { };
+	($sandcrust:ident, $head:ident : &$var_type:ty, $($tail:tt)+) => {
 		sandcrust_restore_changed_vars_global!($sandcrust, $($tail)+);
 	};
-	($sandcrust:ident, $head:ident : $typo:ty, $($tail:tt)+) => {
+	($sandcrust:ident, $head:ident : $var_type:ty, $($tail:tt)+) => {
 		sandcrust_restore_changed_vars_global!($sandcrust, $($tail)+);
 	};
-	($sandcrust:ident, mut $head:ident : $typo:ty ) => { };
-	($sandcrust:ident, mut $head:ident : $typo:ty, $($tail:tt)+) => {
+	($sandcrust:ident, mut $head:ident : $var_type:ty ) => { };
+	($sandcrust:ident, mut $head:ident : $var_type:ty, $($tail:tt)+) => {
 		sandcrust_restore_changed_vars_global!($sandcrust, $($tail)+);
 	};
-	($sandcrust:ident, $head:ident : $typo:ty ) => { };
+	($sandcrust:ident, $head:ident : $var_type:ty ) => { };
 	($sandcrust:ident, ) => {};
 }
 
@@ -766,27 +766,27 @@ macro_rules! sandcrust_restore_changed_vars_global {
 #[macro_export]
 #[cfg(all(feature = "shm", not(feature = "custom_vec")))]
 macro_rules! sandcrust_restore_changed_vars_global {
-	($sandcrust:ident, $head:ident : &mut $typo:ty) => {
+	($sandcrust:ident, $head:ident : &mut $var_type:ty) => {
 		*$head = $sandcrust.restore_var();
 		$sandcrust.update_shm_offset($head);
 	};
-	($sandcrust:ident, $head:ident : &mut $typo:ty, $($tail:tt)+) => {
+	($sandcrust:ident, $head:ident : &mut $var_type:ty, $($tail:tt)+) => {
 		*$head = $sandcrust.restore_var();
 		$sandcrust.update_shm_offset($head);
 		sandcrust_restore_changed_vars_global!($sandcrust, $($tail)+);
 	};
-	($sandcrust:ident, $head:ident : &$typo:ty) => { };
-	($sandcrust:ident, $head:ident : &$typo:ty, $($tail:tt)+) => {
+	($sandcrust:ident, $head:ident : &$var_type:ty) => { };
+	($sandcrust:ident, $head:ident : &$var_type:ty, $($tail:tt)+) => {
 		sandcrust_restore_changed_vars_global!($sandcrust, $($tail)+);
 	};
-	($sandcrust:ident, $head:ident : $typo:ty, $($tail:tt)+) => {
+	($sandcrust:ident, $head:ident : $var_type:ty, $($tail:tt)+) => {
 		sandcrust_restore_changed_vars_global!($sandcrust, $($tail)+);
 	};
-	($sandcrust:ident, mut $head:ident : $typo:ty ) => { };
-	($sandcrust:ident, mut $head:ident : $typo:ty, $($tail:tt)+) => {
+	($sandcrust:ident, mut $head:ident : $var_type:ty ) => { };
+	($sandcrust:ident, mut $head:ident : $var_type:ty, $($tail:tt)+) => {
 		sandcrust_restore_changed_vars_global!($sandcrust, $($tail)+);
 	};
-	($sandcrust:ident, $head:ident : $typo:ty ) => { };
+	($sandcrust:ident, $head:ident : $var_type:ty ) => { };
 	($sandcrust:ident, ) => {};
 }
 
@@ -795,25 +795,25 @@ macro_rules! sandcrust_restore_changed_vars_global {
 #[macro_export]
 #[cfg(not(feature = "custom_vec"))]
 macro_rules! sandcrust_push_function_args {
-	($sandcrust:ident, $head:ident : &mut $typo:ty) => { $sandcrust.put_var(&*$head); };
-	($sandcrust:ident, $head:ident : &mut $typo:ty, $($tail:tt)+) => {
+	($sandcrust:ident, $head:ident : &mut $var_type:ty) => { $sandcrust.put_var(&*$head); };
+	($sandcrust:ident, $head:ident : &mut $var_type:ty, $($tail:tt)+) => {
 		$sandcrust.put_var(&*$head);
 		sandcrust_push_function_args!($sandcrust, $($tail)+);
 	};
-	($sandcrust:ident, $head:ident : &$typo:ty) => { $sandcrust.put_var($head); };
-	($sandcrust:ident, $head:ident : &$typo:ty, $($tail:tt)+) => {
+	($sandcrust:ident, $head:ident : &$var_type:ty) => { $sandcrust.put_var($head); };
+	($sandcrust:ident, $head:ident : &$var_type:ty, $($tail:tt)+) => {
 		$sandcrust.put_var($head);
 		sandcrust_push_function_args!($sandcrust, $($tail)+);
 	};
-	($sandcrust:ident, $head:ident : $typo:ty, $($tail:tt)+) => {
+	($sandcrust:ident, $head:ident : $var_type:ty, $($tail:tt)+) => {
 		$sandcrust.put_var($head);
 		sandcrust_push_function_args!($sandcrust, $($tail)+);
 	};
-	($sandcrust:ident, $head:ident : $typo:ty ) => {
+	($sandcrust:ident, $head:ident : $var_type:ty ) => {
 		$sandcrust.put_var($head);
 	};
-	($sandcrust:ident, mut $head:ident : $typo:ty ) => { $sandcrust.put_var($head); };
-	($sandcrust:ident, mut $head:ident : $typo:ty, $($tail:tt)+) => {
+	($sandcrust:ident, mut $head:ident : $var_type:ty ) => { $sandcrust.put_var($head); };
+	($sandcrust:ident, mut $head:ident : $var_type:ty, $($tail:tt)+) => {
 		$sandcrust.put_var($head);
 		sandcrust_push_function_args!($sandcrust, $($tail)+);
 	};
@@ -860,25 +860,25 @@ macro_rules! sandcrust_push_function_args {
 	($sandcrust:ident, mut $head:ident : Vec<u8> ) => {
 		$sandcrust.put_byte_vector(&$head);
 	};
-	($sandcrust:ident, $head:ident : &mut $typo:ty) => { $sandcrust.put_var(&*$head); };
-	($sandcrust:ident, $head:ident : &mut $typo:ty, $($tail:tt)+) => {
+	($sandcrust:ident, $head:ident : &mut $var_type:ty) => { $sandcrust.put_var(&*$head); };
+	($sandcrust:ident, $head:ident : &mut $var_type:ty, $($tail:tt)+) => {
 		$sandcrust.put_var(&*$head);
 		sandcrust_push_function_args!($sandcrust, $($tail)+);
 	};
-	($sandcrust:ident, $head:ident : &$typo:ty) => { $sandcrust.put_var($head); };
-	($sandcrust:ident, $head:ident : &$typo:ty, $($tail:tt)+) => {
+	($sandcrust:ident, $head:ident : &$var_type:ty) => { $sandcrust.put_var($head); };
+	($sandcrust:ident, $head:ident : &$var_type:ty, $($tail:tt)+) => {
 		$sandcrust.put_var($head);
 		sandcrust_push_function_args!($sandcrust, $($tail)+);
 	};
-	($sandcrust:ident, $head:ident : $typo:ty, $($tail:tt)+) => {
+	($sandcrust:ident, $head:ident : $var_type:ty, $($tail:tt)+) => {
 		$sandcrust.put_var($head);
 		sandcrust_push_function_args!($sandcrust, $($tail)+);
 	};
-	($sandcrust:ident, $head:ident : $typo:ty ) => {
+	($sandcrust:ident, $head:ident : $var_type:ty ) => {
 		$sandcrust.put_var($head);
 	};
-	($sandcrust:ident, mut $head:ident : $typo:ty ) => { $sandcrust.put_var($head); };
-	($sandcrust:ident, mut $head:ident : $typo:ty, $($tail:tt)+) => {
+	($sandcrust:ident, mut $head:ident : $var_type:ty ) => { $sandcrust.put_var($head); };
+	($sandcrust:ident, mut $head:ident : $var_type:ty, $($tail:tt)+) => {
 		$sandcrust.put_var($head);
 		sandcrust_push_function_args!($sandcrust, $($tail)+);
 	};
@@ -891,32 +891,32 @@ macro_rules! sandcrust_push_function_args {
 #[macro_export]
 #[cfg(all(not(feature = "custom_vec"), not(feature = "shm")))]
 macro_rules! sandcrust_pull_function_args {
-	($sandcrust:ident, $head:ident : &mut $typo:ty) => {
-		let mut $head: $typo = $sandcrust.restore_var();
+	($sandcrust:ident, $head:ident : &mut $var_type:ty) => {
+		let mut $head: $var_type = $sandcrust.restore_var();
 	};
-	($sandcrust:ident, $head:ident : &mut $typo:ty, $($tail:tt)+) => {
-		let mut $head: $typo = $sandcrust.restore_var();
+	($sandcrust:ident, $head:ident : &mut $var_type:ty, $($tail:tt)+) => {
+		let mut $head: $var_type = $sandcrust.restore_var();
 		sandcrust_pull_function_args!($sandcrust, $($tail)+);
 	};
-	($sandcrust:ident, $head:ident : &$typo:ty) => {
-		let $head: $typo = $sandcrust.restore_var();
+	($sandcrust:ident, $head:ident : &$var_type:ty) => {
+		let $head: $var_type = $sandcrust.restore_var();
 	};
-	($sandcrust:ident, $head:ident : &$typo:ty, $($tail:tt)+) => {
-		let $head: $typo = $sandcrust.restore_var();
+	($sandcrust:ident, $head:ident : &$var_type:ty, $($tail:tt)+) => {
+		let $head: $var_type = $sandcrust.restore_var();
 		sandcrust_pull_function_args!($sandcrust, $($tail)+);
 	};
-	($sandcrust:ident, $head:ident : $typo:ty, $($tail:tt)+) => {
-		let $head: $typo = $sandcrust.restore_var();
+	($sandcrust:ident, $head:ident : $var_type:ty, $($tail:tt)+) => {
+		let $head: $var_type = $sandcrust.restore_var();
 		sandcrust_pull_function_args!($sandcrust, $($tail)+);
 	};
-	($sandcrust:ident, $head:ident : $typo:ty ) => {
-		let $head: $typo = $sandcrust.restore_var();
+	($sandcrust:ident, $head:ident : $var_type:ty ) => {
+		let $head: $var_type = $sandcrust.restore_var();
 	};
-	($sandcrust:ident, mut $head:ident : $typo:ty ) => {
-		let mut $head: $typo = $sandcrust.restore_var();
+	($sandcrust:ident, mut $head:ident : $var_type:ty ) => {
+		let mut $head: $var_type = $sandcrust.restore_var();
 	};
-	($sandcrust:ident, mut $head:ident : $typo:ty, $($tail:tt)+) => {
-		let mut $head: $typo = $sandcrust.restore_var();
+	($sandcrust:ident, mut $head:ident : $var_type:ty, $($tail:tt)+) => {
+		let mut $head: $var_type = $sandcrust.restore_var();
 		sandcrust_pull_function_args!($sandcrust, $($tail)+);
 	};
 	($sandcrust:ident, ) => {};
@@ -971,32 +971,32 @@ macro_rules! sandcrust_pull_function_args {
 		let $head: Vec<u8> = $sandcrust.restore_byte_vector();
 		sandcrust_pull_function_args!($sandcrust, $($tail)+);
 	};
-	($sandcrust:ident, $head:ident : &mut $typo:ty) => {
-		let mut $head: $typo = $sandcrust.restore_var();
+	($sandcrust:ident, $head:ident : &mut $var_type:ty) => {
+		let mut $head: $var_type = $sandcrust.restore_var();
 	};
-	($sandcrust:ident, $head:ident : &mut $typo:ty, $($tail:tt)+) => {
-		let mut $head: $typo = $sandcrust.restore_var();
+	($sandcrust:ident, $head:ident : &mut $var_type:ty, $($tail:tt)+) => {
+		let mut $head: $var_type = $sandcrust.restore_var();
 		sandcrust_pull_function_args!($sandcrust, $($tail)+);
 	};
-	($sandcrust:ident, $head:ident : &$typo:ty) => {
-		let $head: $typo = $sandcrust.restore_var();
+	($sandcrust:ident, $head:ident : &$var_type:ty) => {
+		let $head: $var_type = $sandcrust.restore_var();
 	};
-	($sandcrust:ident, $head:ident : &$typo:ty, $($tail:tt)+) => {
-		let $head: $typo = $sandcrust.restore_var();
+	($sandcrust:ident, $head:ident : &$var_type:ty, $($tail:tt)+) => {
+		let $head: $var_type = $sandcrust.restore_var();
 		sandcrust_pull_function_args!($sandcrust, $($tail)+);
 	};
-	($sandcrust:ident, $head:ident : $typo:ty, $($tail:tt)+) => {
-		let $head: $typo = $sandcrust.restore_var();
+	($sandcrust:ident, $head:ident : $var_type:ty, $($tail:tt)+) => {
+		let $head: $var_type = $sandcrust.restore_var();
 		sandcrust_pull_function_args!($sandcrust, $($tail)+);
 	};
-	($sandcrust:ident, $head:ident : $typo:ty ) => {
-		let $head: $typo = $sandcrust.restore_var();
+	($sandcrust:ident, $head:ident : $var_type:ty ) => {
+		let $head: $var_type = $sandcrust.restore_var();
 	};
-	($sandcrust:ident, mut $head:ident : $typo:ty ) => {
-		let mut $head: $typo = $sandcrust.restore_var();
+	($sandcrust:ident, mut $head:ident : $var_type:ty ) => {
+		let mut $head: $var_type = $sandcrust.restore_var();
 	};
-	($sandcrust:ident, mut $head:ident : $typo:ty, $($tail:tt)+) => {
-		let mut $head: $typo = $sandcrust.restore_var();
+	($sandcrust:ident, mut $head:ident : $var_type:ty, $($tail:tt)+) => {
+		let mut $head: $var_type = $sandcrust.restore_var();
 		sandcrust_pull_function_args!($sandcrust, $($tail)+);
 	};
 	($sandcrust:ident, ) => {};
@@ -1050,39 +1050,39 @@ macro_rules! sandcrust_pull_function_args {
 		let $head: Vec<u8> = $sandcrust.restore_byte_vector();
 		sandcrust_pull_function_args!($sandcrust, $($tail)+);
 	};
-	($sandcrust:ident, $head:ident : &mut $typo:ty) => {
-		let mut $head: $typo = $sandcrust.restore_var();
+	($sandcrust:ident, $head:ident : &mut $var_type:ty) => {
+		let mut $head: $var_type = $sandcrust.restore_var();
 		$sandcrust.update_shm_offset($head);
 	};
-	($sandcrust:ident, $head:ident : &mut $typo:ty, $($tail:tt)+) => {
-		let mut $head: $typo = $sandcrust.restore_var();
+	($sandcrust:ident, $head:ident : &mut $var_type:ty, $($tail:tt)+) => {
+		let mut $head: $var_type = $sandcrust.restore_var();
 		$sandcrust.update_shm_offset($head);
 		sandcrust_pull_function_args!($sandcrust, $($tail)+);
 	};
-	($sandcrust:ident, $head:ident : &$typo:ty) => {
-		let $head: $typo = $sandcrust.restore_var();
+	($sandcrust:ident, $head:ident : &$var_type:ty) => {
+		let $head: $var_type = $sandcrust.restore_var();
 		$sandcrust.update_shm_offset(&$head);
 	};
-	($sandcrust:ident, $head:ident : &$typo:ty, $($tail:tt)+) => {
-		let $head: $typo = $sandcrust.restore_var();
-		$sandcrust.update_shm_offset(&$head);
-		sandcrust_pull_function_args!($sandcrust, $($tail)+);
-	};
-	($sandcrust:ident, $head:ident : $typo:ty, $($tail:tt)+) => {
-		let $head: $typo = $sandcrust.restore_var();
+	($sandcrust:ident, $head:ident : &$var_type:ty, $($tail:tt)+) => {
+		let $head: $var_type = $sandcrust.restore_var();
 		$sandcrust.update_shm_offset(&$head);
 		sandcrust_pull_function_args!($sandcrust, $($tail)+);
 	};
-	($sandcrust:ident, $head:ident : $typo:ty ) => {
-		let $head: $typo = $sandcrust.restore_var();
+	($sandcrust:ident, $head:ident : $var_type:ty, $($tail:tt)+) => {
+		let $head: $var_type = $sandcrust.restore_var();
+		$sandcrust.update_shm_offset(&$head);
+		sandcrust_pull_function_args!($sandcrust, $($tail)+);
+	};
+	($sandcrust:ident, $head:ident : $var_type:ty ) => {
+		let $head: $var_type = $sandcrust.restore_var();
 		$sandcrust.update_shm_offset(&$head);
 	};
-	($sandcrust:ident, mut $head:ident : $typo:ty ) => {
-		let mut $head: $typo = $sandcrust.restore_var();
+	($sandcrust:ident, mut $head:ident : $var_type:ty ) => {
+		let mut $head: $var_type = $sandcrust.restore_var();
 		$sandcrust.update_shm_offset(&$head);
 	};
-	($sandcrust:ident, mut $head:ident : $typo:ty, $($tail:tt)+) => {
-		let mut $head: $typo = $sandcrust.restore_var();
+	($sandcrust:ident, mut $head:ident : $var_type:ty, $($tail:tt)+) => {
+		let mut $head: $var_type = $sandcrust.restore_var();
 		$sandcrust.update_shm_offset(&$head);
 		sandcrust_pull_function_args!($sandcrust, $($tail)+);
 	};
@@ -1095,39 +1095,39 @@ macro_rules! sandcrust_pull_function_args {
 #[macro_export]
 #[cfg(all(not(feature = "custom_vec"), feature = "shm"))]
 macro_rules! sandcrust_pull_function_args {
-	($sandcrust:ident, $head:ident : &mut $typo:ty) => {
-		let mut $head: $typo = $sandcrust.restore_var();
+	($sandcrust:ident, $head:ident : &mut $var_type:ty) => {
+		let mut $head: $var_type = $sandcrust.restore_var();
 		$sandcrust.update_shm_offset(&$head);
 	};
-	($sandcrust:ident, $head:ident : &mut $typo:ty, $($tail:tt)+) => {
-		let mut $head: $typo = $sandcrust.restore_var();
-		$sandcrust.update_shm_offset(&$head);
-		sandcrust_pull_function_args!($sandcrust, $($tail)+);
-	};
-	($sandcrust:ident, $head:ident : &$typo:ty) => {
-		let $head: $typo = $sandcrust.restore_var();
-		$sandcrust.update_shm_offset(&$head);
-	};
-	($sandcrust:ident, $head:ident : &$typo:ty, $($tail:tt)+) => {
-		let $head: $typo = $sandcrust.restore_var();
+	($sandcrust:ident, $head:ident : &mut $var_type:ty, $($tail:tt)+) => {
+		let mut $head: $var_type = $sandcrust.restore_var();
 		$sandcrust.update_shm_offset(&$head);
 		sandcrust_pull_function_args!($sandcrust, $($tail)+);
 	};
-	($sandcrust:ident, $head:ident : $typo:ty, $($tail:tt)+) => {
-		let $head: $typo = $sandcrust.restore_var();
+	($sandcrust:ident, $head:ident : &$var_type:ty) => {
+		let $head: $var_type = $sandcrust.restore_var();
+		$sandcrust.update_shm_offset(&$head);
+	};
+	($sandcrust:ident, $head:ident : &$var_type:ty, $($tail:tt)+) => {
+		let $head: $var_type = $sandcrust.restore_var();
 		$sandcrust.update_shm_offset(&$head);
 		sandcrust_pull_function_args!($sandcrust, $($tail)+);
 	};
-	($sandcrust:ident, $head:ident : $typo:ty ) => {
-		let $head: $typo = $sandcrust.restore_var();
+	($sandcrust:ident, $head:ident : $var_type:ty, $($tail:tt)+) => {
+		let $head: $var_type = $sandcrust.restore_var();
+		$sandcrust.update_shm_offset(&$head);
+		sandcrust_pull_function_args!($sandcrust, $($tail)+);
+	};
+	($sandcrust:ident, $head:ident : $var_type:ty ) => {
+		let $head: $var_type = $sandcrust.restore_var();
 		$sandcrust.update_shm_offset(&$head);
 	};
-	($sandcrust:ident, mut $head:ident : $typo:ty ) => {
-		let mut $head: $typo = $sandcrust.restore_var();
+	($sandcrust:ident, mut $head:ident : $var_type:ty ) => {
+		let mut $head: $var_type = $sandcrust.restore_var();
 		$sandcrust.update_shm_offset(&$head);
 	};
-	($sandcrust:ident, mut $head:ident : $typo:ty, $($tail:tt)+) => {
-		let mut $head: $typo = $sandcrust.restore_var();
+	($sandcrust:ident, mut $head:ident : $var_type:ty, $($tail:tt)+) => {
+		let mut $head: $var_type = $sandcrust.restore_var();
 		$sandcrust.update_shm_offset(&$head);
 		sandcrust_pull_function_args!($sandcrust, $($tail)+);
 	};
@@ -1392,25 +1392,25 @@ macro_rules! sandcrust_collect_ret {
 #[doc(hidden)]
 #[macro_export]
 macro_rules! sandcrust_strip_types {
-	(($head:ident : &mut $typo:ty, $($tail:tt)+) -> ($f:ident($($body:tt)+))) => (sandcrust_strip_types!(($($tail)+) -> ($f($($body)+, &mut $head))));
-	(($head:ident : &mut $typo:ty, $($tail:tt)+) -> ($f:ident())) => (sandcrust_strip_types!(($($tail)+) -> ($f(&mut $head))));
-	(($head:ident : &mut $typo:ty) -> ($f:ident($($body:tt)+))) => ($f($($body)+, &mut $head));
-	(($head:ident : &mut $typo:ty) -> ($f:ident())) => ($f(&mut $head));
+	(($head:ident : &mut $var_type:ty, $($tail:tt)+) -> ($f:ident($($body:tt)+))) => (sandcrust_strip_types!(($($tail)+) -> ($f($($body)+, &mut $head))));
+	(($head:ident : &mut $var_type:ty, $($tail:tt)+) -> ($f:ident())) => (sandcrust_strip_types!(($($tail)+) -> ($f(&mut $head))));
+	(($head:ident : &mut $var_type:ty) -> ($f:ident($($body:tt)+))) => ($f($($body)+, &mut $head));
+	(($head:ident : &mut $var_type:ty) -> ($f:ident())) => ($f(&mut $head));
 
-	(($head:ident : &$typo:ty, $($tail:tt)+) -> ($f:ident($($body:tt)+))) => (sandcrust_strip_types!(($($tail)+) -> ($f($($body)+, &$head))));
-	(($head:ident : &$typo:ty, $($tail:tt)+) -> ($f:ident())) => (sandcrust_strip_types!(($($tail)+) -> ($f(&$head))));
-	(($head:ident : &$typo:ty) -> ($f:ident($($body:tt)+))) => ($f($($body)+, &$head));
-	(($head:ident : &$typo:ty) -> ($f:ident())) => ($f(&$head));
+	(($head:ident : &$var_type:ty, $($tail:tt)+) -> ($f:ident($($body:tt)+))) => (sandcrust_strip_types!(($($tail)+) -> ($f($($body)+, &$head))));
+	(($head:ident : &$var_type:ty, $($tail:tt)+) -> ($f:ident())) => (sandcrust_strip_types!(($($tail)+) -> ($f(&$head))));
+	(($head:ident : &$var_type:ty) -> ($f:ident($($body:tt)+))) => ($f($($body)+, &$head));
+	(($head:ident : &$var_type:ty) -> ($f:ident())) => ($f(&$head));
 
-	((mut $head:ident : $typo:ty, $($tail:tt)+) -> ($f:ident($($body:tt)+))) => (sandcrust_strip_types!(($($tail)+) -> ($f($($body)+, mut $head))));
-	((mut $head:ident : $typo:ty, $($tail:tt)+) -> ($f:ident())) => (sandcrust_strip_types!(($($tail)+) -> ($f(mut $head))));
-	((mut $head:ident : $typo:ty) -> ($f:ident($($body:tt)+))) => ($f($($body)+, $head));
-	((mut $head:ident : $typo:ty) -> ($f:ident())) => ($f($head));
+	((mut $head:ident : $var_type:ty, $($tail:tt)+) -> ($f:ident($($body:tt)+))) => (sandcrust_strip_types!(($($tail)+) -> ($f($($body)+, mut $head))));
+	((mut $head:ident : $var_type:ty, $($tail:tt)+) -> ($f:ident())) => (sandcrust_strip_types!(($($tail)+) -> ($f(mut $head))));
+	((mut $head:ident : $var_type:ty) -> ($f:ident($($body:tt)+))) => ($f($($body)+, $head));
+	((mut $head:ident : $var_type:ty) -> ($f:ident())) => ($f($head));
 
-	(($head:ident : $typo:ty, $($tail:tt)+) -> ($f:ident($($body:tt)+))) => (sandcrust_strip_types!(($($tail)+) -> ($f($($body)+, $head))));
-	(($head:ident : $typo:ty, $($tail:tt)+) -> ($f:ident())) => (sandcrust_strip_types!(($($tail)+) -> ($f($head))));
-	(($head:ident : $typo:ty) -> ($f:ident($($body:tt)+))) => ($f($($body)+, $head));
-	(($head:ident : $typo:ty) -> ($f:ident())) => ($f($head));
+	(($head:ident : $var_type:ty, $($tail:tt)+) -> ($f:ident($($body:tt)+))) => (sandcrust_strip_types!(($($tail)+) -> ($f($($body)+, $head))));
+	(($head:ident : $var_type:ty, $($tail:tt)+) -> ($f:ident())) => (sandcrust_strip_types!(($($tail)+) -> ($f($head))));
+	(($head:ident : $var_type:ty) -> ($f:ident($($body:tt)+))) => ($f($($body)+, $head));
+	(($head:ident : $var_type:ty) -> ($f:ident())) => ($f($head));
 
 	($f:ident($($tail:tt)+)) => (sandcrust_strip_types!(($($tail)+) -> ($f())));
 	($f:ident()) => ($f());
@@ -1797,12 +1797,12 @@ fn child_terminate(sandcrust: &mut Sandcrust) {
 /// ```
 #[macro_export]
 macro_rules! sandcrust_wrap_global {
-	(#[$link_flag:meta] extern { $(static mut $name:ident: $typo:ty;)+ }) => {
+	(#[$link_flag:meta] extern { $(static mut $name:ident: $var_type:ty;)+ }) => {
 		// re-gengerate the extern block
 		#[$link_flag]
 		extern {
 			$(
-			static mut $name: $typo;
+			static mut $name: $var_type;
 			)+
 		}
 
