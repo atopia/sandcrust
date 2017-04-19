@@ -304,7 +304,6 @@ impl Sandcrust {
 
 
 	/// Wait for return signal from child.
-	#[cfg(feature = "shm")]
 	pub fn await_return(&mut self) {
 		let mut buf = [0u8];
 		let _ = self.file_out.read(&mut buf).expect("sandcrust: failed to read ready-signal");
@@ -312,7 +311,6 @@ impl Sandcrust {
 
 
 	/// Signal sucessful IPC return to parent.
-	#[cfg(feature = "shm")]
 	pub fn signal_return(&mut self) {
 		let _ = self.file_in.write_all(b"1").expect("sandcrust: ready-signal write failed");
 	}
@@ -1142,12 +1140,14 @@ macro_rules! sandcrust_pull_function_args {
 macro_rules! sandcrust_run_func_global {
 	(has_ret, $has_vec:ident, $sandcrust:ident, $f:ident($($x:tt)*)) => {
 		let retval = sandcrust_strip_types!($f($($x)*));
+		$sandcrust.signal_return();
 		sandcrust_store_changed_vars_global!($sandcrust, $($x)*);
 		$sandcrust.put_var(&retval);
 		$sandcrust.flush_pipe();
 	};
 	(no_ret, no_vec, $sandcrust:ident, $f:ident($($x:tt)*)) => {
 		sandcrust_strip_types!($f($($x)*));
+		$sandcrust.signal_return();
 		sandcrust_store_changed_vars_global!($sandcrust, $($x)*);
 		$sandcrust.flush_pipe();
 	};
@@ -1183,18 +1183,21 @@ macro_rules! sandcrust_run_func_global {
 macro_rules! sandcrust_run_func_global {
 	(has_ret, has_vec, $sandcrust:ident, $f:ident($($x:tt)*)) => {
 		let retval = sandcrust_strip_types!($f($($x)*));
+		$sandcrust.signal_return();
 		sandcrust_store_changed_vars_global!($sandcrust, $($x)*);
 		$sandcrust.put_byte_vector(&retval);
 		$sandcrust.flush_pipe();
 	};
 	(has_ret, no_vec, $sandcrust:ident, $f:ident($($x:tt)*)) => {
 		let retval = sandcrust_strip_types!($f($($x)*));
+		$sandcrust.signal_return();
 		sandcrust_store_changed_vars_global!($sandcrust, $($x)*);
 		$sandcrust.put_var(&retval);
 		$sandcrust.flush_pipe();
 	};
 	(no_ret, no_vec, $sandcrust:ident, $f:ident($($x:tt)*)) => {
 		sandcrust_strip_types!($f($($x)*));
+		$sandcrust.signal_return();
 		sandcrust_store_changed_vars_global!($sandcrust, $($x)*);
 		$sandcrust.flush_pipe();
 	};
@@ -1539,6 +1542,7 @@ macro_rules! sandcrust_global_create_function {
 					sandcrust_push_global(&mut sandcrust);
 					sandcrust_push_function_args!(sandcrust, $($x)*);
 					sandcrust.flush_pipe();
+					sandcrust.await_return();
 
 					sandcrust_restore_changed_vars_global!(sandcrust, $($x)*);
 					sandcrust_collect_ret!($has_retval, $has_vec, $rettype, sandcrust)
