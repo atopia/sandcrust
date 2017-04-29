@@ -1148,6 +1148,7 @@ macro_rules! sandcrust_run_func_global {
 	(no_ret, no_vec, $sandcrust:ident, $f:ident($($x:tt)*)) => {
 		sandcrust_strip_types!($f($($x)*));
 		$sandcrust.signal_return();
+		sandcrust_push_global($sandcrust);
 		sandcrust_store_changed_vars_global!($sandcrust, $($x)*);
 		$sandcrust.flush_pipe();
 	};
@@ -1581,6 +1582,7 @@ macro_rules! sandcrust_global_create_function {
 
 					sandcrust.await_return();
 					sandcrust.reset_shm_offset();
+					sandcrust_pull_global(sandcrust);
 					sandcrust_restore_changed_vars_global!(sandcrust, $($x)*);
 					sandcrust_collect_ret!($has_retval, $has_vec, $rettype, sandcrust)
 			}
