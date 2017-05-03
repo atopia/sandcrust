@@ -672,11 +672,6 @@ macro_rules! sandcrust_restore_changed_vars_global {
 	($sandcrust:ident, ) => {};
 }
 
-
-/// Restore potentially changed vars from pipe in the parent after IPC call.
-///
-/// Global version - this would be a merge candidate with sandcrust_restore_changed_vars,
-/// but inside the function &mut vars need to be dereferenced.
 #[doc(hidden)]
 #[macro_export]
 #[cfg(all(feature = "custom_vec", feature = "shm"))]
@@ -711,10 +706,7 @@ macro_rules! sandcrust_restore_changed_vars_global {
 	($sandcrust:ident, $head:ident : $var_type:ty ) => { };
 	($sandcrust:ident, ) => {};
 }
-/// Restore potentially changed vars from pipe in the parent after IPC call.
-///
-/// Global version - this would be a merge candidate with sandcrust_restore_changed_vars,
-/// but inside the function &mut vars need to be dereferenced.
+
 #[doc(hidden)]
 #[macro_export]
 #[cfg(all(not(feature = "shm"), not(feature = "custom_vec")))]
@@ -741,11 +733,6 @@ macro_rules! sandcrust_restore_changed_vars_global {
 	($sandcrust:ident, ) => {};
 }
 
-
-/// Restore potentially changed vars from pipe in the parent after IPC call.
-///
-/// Global version - this would be a merge candidate with sandcrust_restore_changed_vars,
-/// but inside the function &mut vars need to be dereferenced.
 #[doc(hidden)]
 #[macro_export]
 #[cfg(all(feature = "shm", not(feature = "custom_vec")))]
@@ -773,6 +760,7 @@ macro_rules! sandcrust_restore_changed_vars_global {
 	($sandcrust:ident, $head:ident : $var_type:ty ) => { };
 	($sandcrust:ident, ) => {};
 }
+
 
 /// Push function arguments to global client in case they have changed since forking.
 #[doc(hidden)]
@@ -804,8 +792,6 @@ macro_rules! sandcrust_push_function_args {
 	($sandcrust:ident, ) => {};
 }
 
-
-/// Push function arguments to global client in case they have changed since forking.
 #[doc(hidden)]
 #[macro_export]
 #[cfg(feature = "custom_vec")]
@@ -906,9 +892,6 @@ macro_rules! sandcrust_pull_function_args {
 	($sandcrust:ident, ) => {};
 }
 
-
-
-/// Pull function arguments in global client.
 #[doc(hidden)]
 #[macro_export]
 #[cfg(all(feature = "custom_vec", not(feature = "shm")))]
@@ -986,8 +969,6 @@ macro_rules! sandcrust_pull_function_args {
 	($sandcrust:ident, ) => {};
 }
 
-
-/// Pull function arguments in global client.
 #[doc(hidden)]
 #[macro_export]
 #[cfg(all(feature = "custom_vec", feature = "shm"))]
@@ -1073,8 +1054,6 @@ macro_rules! sandcrust_pull_function_args {
 	($sandcrust:ident, ) => {};
 }
 
-
-/// Pull function arguments in global client.
 #[doc(hidden)]
 #[macro_export]
 #[cfg(all(not(feature = "custom_vec"), feature = "shm"))]
@@ -1141,7 +1120,6 @@ macro_rules! sandcrust_run_func_global {
 	};
 }
 
-/// Run function, gathering return value if available.
 #[doc(hidden)]
 #[macro_export]
 #[cfg(all(feature = "shm", not(feature = "custom_vec")))]
@@ -1165,8 +1143,6 @@ macro_rules! sandcrust_run_func_global {
 	};
 }
 
-
-/// Run function, gathering return value if available.
 #[doc(hidden)]
 #[macro_export]
 #[cfg(all(not(feature = "shm"), feature = "custom_vec"))]
@@ -1229,8 +1205,6 @@ macro_rules! sandcrust_run_func_global {
 	};
 }
 
-
-/// Run function, gathering return value if available.
 #[doc(hidden)]
 #[macro_export]
 #[cfg(not(feature = "shm"))]
@@ -1248,8 +1222,6 @@ macro_rules! sandcrust_run_func {
 	};
 }
 
-
-/// Run function, gathering return value if available.
 #[doc(hidden)]
 #[macro_export]
 #[cfg(feature = "shm")]
@@ -1297,8 +1269,6 @@ macro_rules! sandcrust_collect_ret {
 	};
 }
 
-
-/// Collect return value in parent, if available.
 #[doc(hidden)]
 #[macro_export]
 #[cfg(all(feature = "custom_vec", feature = "shm"))]
@@ -1326,8 +1296,6 @@ macro_rules! sandcrust_collect_ret {
 	};
 }
 
-
-/// Collect return value in parent, if available.
 #[doc(hidden)]
 #[macro_export]
 #[cfg(all(not(feature = "custom_vec"), not(feature = "shm")))]
@@ -1352,8 +1320,6 @@ macro_rules! sandcrust_collect_ret {
 	};
 }
 
-
-/// Collect return value in parent, if available.
 #[doc(hidden)]
 #[macro_export]
 #[cfg(all(not(feature = "custom_vec"), feature = "shm"))]
@@ -1380,6 +1346,7 @@ macro_rules! sandcrust_collect_ret {
 		$sandcrust.join_child();
 	};
 }
+
 
 /// Strip argument types from function definition for calling the function.
 ///
@@ -1514,7 +1481,6 @@ macro_rules! sandcrust_global_create_wrapper {
 /// Create global funtion definition in place of the original.
 ///
 /// Possibly called by PARENT (and child):
-/// FIXME: am besten gleich: je nach direkt-c oder nicht die in Ruhe lassen und nen anderen wrapper nehmen
 #[doc(hidden)]
 #[macro_export]
 #[cfg(not(feature = "shm"))]
@@ -1546,11 +1512,6 @@ macro_rules! sandcrust_global_create_function {
 	};
 }
 
-
-/// Create global funtion definition in place of the original.
-///
-/// Possibly called by PARENT (and child):
-/// FIXME: am besten gleich: je nach direkt-c oder nicht die in Ruhe lassen und nen anderen wrapper nehmen
 #[doc(hidden)]
 #[macro_export]
 #[cfg(feature = "shm")]
@@ -1583,6 +1544,8 @@ macro_rules! sandcrust_global_create_function {
 			}
 	};
 }
+
+
 /// Wrap a function.
 ///
 /// # This macro can be used in two major ways:
@@ -1729,6 +1692,7 @@ pub fn sandcrust_init() {
 	}
 }
 
+
 /// Initialize sandcrust with a custom SHM size.
 #[cfg(feature = "shm")]
 pub fn sandcrust_init_with_shm_size(new_size: usize) {
@@ -1738,12 +1702,14 @@ pub fn sandcrust_init_with_shm_size(new_size: usize) {
 	sandcrust_init();
 }
 
+
 /// Set a custom SHM size.
 #[cfg(feature = "shm")]
 pub fn sandcrust_set_shm_size(new_size: usize) {
 	let mut size = SANDCRUST_SHM_SIZE.lock().expect("sandcrust: failed to lock SANDCRUST_SHM_SIZE");
 	*size = new_size;
 }
+
 
 /// Terminate the global child.
 ///
@@ -1761,11 +1727,13 @@ pub fn sandcrust_terminate() {
 	sandcrust.terminate_child();
 }
 
+
 /// child-side cleanup function that adheres to the wrapper function signature.
 #[allow(unused_variables)]
 fn child_terminate(sandcrust: &mut Sandcrust) {
 	::std::process::exit(0);
 }
+
 
 /// Update mutable global variables.
 ///
