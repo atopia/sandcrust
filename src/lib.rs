@@ -67,7 +67,6 @@ pub struct Sandcrust {
 	shm_offset: usize,
 }
 
-// main data structure for sandcrust
 #[doc(hidden)]
 #[derive(Debug)]
 #[cfg(not(feature = "shm"))]
@@ -79,7 +78,6 @@ pub struct Sandcrust {
 
 
 // lazily initialized global Sandcrust object (via Deref magic) for global sandbox
-
 #[cfg(not(feature = "shm"))]
 lazy_static! {
 	#[doc(hidden)]
@@ -98,6 +96,7 @@ lazy_static! {
 	};
 	static ref SANDCRUST_SHM_SIZE: ::std::sync::Mutex<usize> = ::std::sync::Mutex::new(SANDCRUST_DEFAULT_SHM_SIZE);
 }
+
 
 // Necessary, because once the child is initialized, we need a lightweight, non-locking check to
 // run the original function.
@@ -195,9 +194,8 @@ impl Sandcrust {
 					}
 				});
 
-
-				// we overload the meaning of file_in / file_out for parent and child here, which is
-				// not nice but might enable reuse of some methods
+				// We overload the meaning of file_in / file_out for parent and child here, which is
+				// not nice but enables the reuse of some methods.
 				::nix::unistd::close(parent_cmd_send).expect("sandcrust: failed to close unused parent write FD");
 				::nix::unistd::close(parent_result_receive).expect("sandcrust: failed to close unused parent read FD");
 
@@ -209,6 +207,7 @@ impl Sandcrust {
 					shm: shm,
 					shm_offset: 0,
 				};
+
 				#[cfg(not(feature = "shm"))]
 				let sandcrust = Sandcrust {
 					file_in: std::io::BufWriter::new(unsafe { ::std::fs::File::from_raw_fd(child_result_send) }),
@@ -221,6 +220,7 @@ impl Sandcrust {
 		};
 		sandcrust
 	}
+
 
 	/// Check if the process is unintialized child process and run child loop.
 	///
@@ -281,18 +281,46 @@ impl Sandcrust {
 
 
 	/// Put variable in pipe.
-	pub fn put_var_in_fifo<T: ::serde::Serialize>(&mut self, var: T) {
+	#[cfg(not(feature = "shm"))]
+	pub fn put_var<T: ::serde::Serialize>(&mut self, var: T) {
 		::bincode::serialize_into(&mut self.file_in,
 												&var,
 												::bincode::Infinite)
 												.expect("sandcrust: failed to put variable in fifo");
 	}
 
+	#[cfg(feature = "shm")]
+	pub fn put_var<T: ::serde::Serialize>(&mut self, var: T) {
+		let remaining_mem: usize = self.shm.len() - self.shm_offset;
 
-	/// Restore variable from pipe.
-	pub fn restore_var_from_fifo<T: ::serde::Deserialize>(&mut self) -> T {
+		match ::bincode::serialized_size_bounded(&var, remaining_mem as u64) {
+			Some(size) => {
+				let mut mem = unsafe { self.shm.as_mut_slice() };
+				let mut window = &mut mem[self.shm_offset..];
+				::bincode::serialize_into(&mut window,
+											&var,
+											::bincode::Bounded(remaining_mem as u64))
+											.expect("sandcrust: failed to put variable in shm");
+				self.shm_offset += size as usize;
+			},
+			None => panic!("sandcrust: SHM out of memory!"),
+		}
+	}
+
+
+	/// Get variable.
+	#[cfg(not(feature = "shm"))]
+	pub fn restore_var<T: ::serde::Deserialize>(&mut self) -> T {
 		::bincode::deserialize_from(&mut self.file_out, ::bincode::Infinite)
 											.expect("sandcrust: failed to read variable from fifo")
+	}
+
+
+	#[cfg(feature = "shm")]
+	pub fn restore_var<T: ::serde::Deserialize>(&mut self) -> T {
+		let mem = unsafe { self.shm.as_slice() };
+		let window = &mem[self.shm_offset..];
+		::bincode::deserialize(window).expect("sandcrust: failed to read variable from shm")
 	}
 
 
@@ -300,6 +328,13 @@ impl Sandcrust {
 	#[cfg(feature = "shm")]
 	pub fn reset_shm_offset(&mut self) {
 		self.shm_offset = 0;
+	}
+
+
+	/// Update SHM offset with size of var.
+	#[cfg(feature = "shm")]
+	pub fn update_shm_offset<T: ::serde::Serialize>(&mut self, var: T) {
+		self.shm_offset += ::bincode::serialized_size(&var) as usize;
 	}
 
 
@@ -315,6 +350,7 @@ impl Sandcrust {
 		let _ = self.file_in.write_all(b"1").expect("sandcrust: ready-signal write failed");
 	}
 
+
 	/// Transmit function pointer to child.
 	pub fn put_func_ptr(&mut self, func: fn(&mut Sandcrust))  {
 		unsafe {
@@ -326,6 +362,7 @@ impl Sandcrust {
 			let _ = self.file_in.write_all(&buf).expect("sandcrust: failed to send func ptr");
 		}
 	}
+
 
 	/// Receive function pointer.
 	pub fn get_func_ptr(&mut self) -> fn(&mut Sandcrust)  {
@@ -339,57 +376,8 @@ impl Sandcrust {
 		func
 	}
 
-	/// Put variable.
-	pub fn put_var<T: ::serde::Serialize>(&mut self, var: T) {
-		#[cfg(not(feature = "shm"))]
-		#[inline]
-		self.put_var_in_fifo(var);
-		#[cfg(feature = "shm")]
-		{
-			let remaining_mem: usize = self.shm.len() - self.shm_offset;
 
-			match ::bincode::serialized_size_bounded(&var, remaining_mem as u64) {
-				Some(size) => {
-					let mut mem = unsafe { self.shm.as_mut_slice() };
-					let mut window = &mut mem[self.shm_offset..];
-					::bincode::serialize_into(&mut window,
-												&var,
-												::bincode::Bounded(remaining_mem as u64))
-												.expect("sandcrust: failed to put variable in shm");
-					self.shm_offset += size as usize;
-				},
-				None => panic!("sandcrust: SHM out of memory!"),
-			}
-		}
-	}
-
-
-	/// Get variable.
-	pub fn restore_var<T: ::serde::Deserialize>(&mut self) -> T {
-		#[cfg(not(feature = "shm"))]
-		#[inline]
-		{
-			self.restore_var_from_fifo()
-		}
-		#[cfg(feature = "shm")]
-		{
-		let mem = unsafe { self.shm.as_slice() };
-		let window = &mem[self.shm_offset..];
-		::bincode::deserialize(window).expect("sandcrust: failed to read variable from shm")
-		}
-	}
-
-
-	/// FIXME: ugly clude b/c otherwise the compiler won't know that var (being type X) is
-	/// serializeable
-	/// Either find some trait magic to shut it up, or combine in macro
-	#[cfg(feature = "shm")]
-	pub fn update_shm_offset<T: ::serde::Serialize>(&mut self, var: T) {
-		self.shm_offset += ::bincode::serialized_size(&var) as usize;
-	}
-
-
-	/// Custom restore function for byte vectors.
+	/// Custom put function for byte vectors.
 	#[cfg(all(feature = "custom_vec", not(feature = "shm")))]
 	pub fn put_byte_vector(&mut self, vector: &[u8]) {
 		let size = vector.len();
@@ -403,7 +391,6 @@ impl Sandcrust {
 		let _ = self.file_in.write_all(&vector[..]).expect("sandcrust: failed to send vector data");
 	}
 
-	/// Custom restore function for byte vectors.
 	#[cfg(all(feature = "custom_vec", feature = "shm"))]
 	pub fn put_byte_vector(&mut self, vector: &[u8]) {
 		let size = vector.len();
@@ -433,7 +420,8 @@ impl Sandcrust {
 		self.shm_offset += size;
 	}
 
-	/// Custom put function for byte vectors.
+
+	/// Custom restore function for byte vectors.
 	#[cfg(all(feature = "custom_vec", feature = "shm"))]
 	pub fn restore_byte_vector(&mut self) -> Vec<u8> {
 		// restore size
@@ -460,7 +448,6 @@ impl Sandcrust {
 		new_vec
 	}
 
-	/// Custom put function for byte vectors.
 	#[cfg(all(feature = "custom_vec", not(feature = "shm")))]
 	pub fn restore_byte_vector(&mut self) -> Vec<u8> {
 		// restore size
@@ -475,8 +462,9 @@ impl Sandcrust {
 		new_vec
 	}
 
-	/// Send '0' command pointer to child loop, causing child to shut down, and collect the child's
-    /// exit status.
+
+	/// Send pointer to 'child_terminate' to child loop, causing child to shut down, and collect
+	/// the child's exit status.
 	pub fn terminate_child(&mut self) {
 		let func: fn(&mut Sandcrust) = child_terminate;
 		self.put_func_ptr(func);
@@ -505,10 +493,12 @@ impl Sandcrust {
 		}
 	}
 
+
 	/// Wrap fork for use in one-time sandbox macro to avoid exporting nix.
 	pub fn fork(&self) -> Result<SandcrustForkResult, ::nix::Error> {
 		nix::unistd::fork()
 	}
+
 
 	/// Flush Writer pipe to clear buffer.
 	#[cfg(not(feature = "shm"))]
@@ -516,6 +506,7 @@ impl Sandcrust {
 		self.file_in.flush().expect("sandcrust: write flush failed");
 	}
 }
+
 
 /// Store potentially changed vars into the pipe from child to parent.
 #[doc(hidden)]
@@ -542,8 +533,6 @@ macro_rules! sandcrust_store_changed_vars_global {
 	($sandcrust:ident, ) => {};
 }
 
-
-/// Store potentially changed vars into the pipe from child to parent.
 #[doc(hidden)]
 #[macro_export]
 #[cfg(feature = "custom_vec")]
@@ -573,7 +562,6 @@ macro_rules! sandcrust_store_changed_vars_global {
 	($sandcrust:ident, ) => {};
 }
 
-/// Store potentially changed vars into the pipe from child to parent.
 #[doc(hidden)]
 #[macro_export]
 macro_rules! sandcrust_store_changed_vars {
@@ -622,8 +610,6 @@ macro_rules! sandcrust_restore_changed_vars {
 	($sandcrust:ident, ) => {};
 }
 
-
-/// Restore potentially changed vars from pipe in the parent after IPC call.
 #[doc(hidden)]
 #[macro_export]
 #[cfg(feature = "shm")]
