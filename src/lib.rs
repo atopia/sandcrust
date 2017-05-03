@@ -1127,6 +1127,7 @@ macro_rules! sandcrust_run_func_global {
 	(has_ret, $has_vec:ident, $sandcrust:ident, $f:ident($($x:tt)*)) => {
 		let retval = sandcrust_strip_types!($f($($x)*));
 		$sandcrust.signal_return();
+		sandcrust_push_global($sandcrust);
 		sandcrust_store_changed_vars_global!($sandcrust, $($x)*);
 		$sandcrust.put_var(&retval);
 		$sandcrust.flush_pipe();
@@ -1148,6 +1149,7 @@ macro_rules! sandcrust_run_func_global {
 	(has_ret, $has_vec:ident, $sandcrust:ident, $f:ident($($x:tt)*)) => {
 		let retval = sandcrust_strip_types!($f($($x)*));
 		$sandcrust.reset_shm_offset();
+		sandcrust_push_global($sandcrust);
 		sandcrust_store_changed_vars_global!($sandcrust, $($x)*);
 		$sandcrust.put_var(&retval);
 		$sandcrust.signal_return();
@@ -1157,6 +1159,7 @@ macro_rules! sandcrust_run_func_global {
 	(no_ret, no_vec, $sandcrust:ident, $f:ident($($x:tt)*)) => {
 		sandcrust_strip_types!($f($($x)*));
 		$sandcrust.reset_shm_offset();
+		sandcrust_push_global($sandcrust);
 		sandcrust_store_changed_vars_global!($sandcrust, $($x)*);
 		$sandcrust.signal_return();
 	};
@@ -1178,6 +1181,7 @@ macro_rules! sandcrust_run_func_global {
 	(has_ret, no_vec, $sandcrust:ident, $f:ident($($x:tt)*)) => {
 		let retval = sandcrust_strip_types!($f($($x)*));
 		$sandcrust.signal_return();
+		sandcrust_push_global($sandcrust);
 		sandcrust_store_changed_vars_global!($sandcrust, $($x)*);
 		$sandcrust.put_var(&retval);
 		$sandcrust.flush_pipe();
@@ -1185,6 +1189,7 @@ macro_rules! sandcrust_run_func_global {
 	(no_ret, no_vec, $sandcrust:ident, $f:ident($($x:tt)*)) => {
 		sandcrust_strip_types!($f($($x)*));
 		$sandcrust.signal_return();
+		sandcrust_push_global($sandcrust);
 		sandcrust_store_changed_vars_global!($sandcrust, $($x)*);
 		$sandcrust.flush_pipe();
 	};
@@ -1198,6 +1203,7 @@ macro_rules! sandcrust_run_func_global {
 	(has_ret, has_vec, $sandcrust:ident, $f:ident($($x:tt)*)) => {
 		let retval = sandcrust_strip_types!($f($($x)*));
 		$sandcrust.reset_shm_offset();
+		sandcrust_push_global($sandcrust);
 		sandcrust_store_changed_vars_global!($sandcrust, $($x)*);
 		$sandcrust.put_byte_vector(&retval);
 		$sandcrust.signal_return();
@@ -1207,6 +1213,7 @@ macro_rules! sandcrust_run_func_global {
 	(has_ret, no_vec, $sandcrust:ident, $f:ident($($x:tt)*)) => {
 		let retval = sandcrust_strip_types!($f($($x)*));
 		$sandcrust.reset_shm_offset();
+		sandcrust_push_global($sandcrust);
 		sandcrust_store_changed_vars_global!($sandcrust, $($x)*);
 		$sandcrust.put_var(&retval);
 		$sandcrust.signal_return();
@@ -1216,6 +1223,7 @@ macro_rules! sandcrust_run_func_global {
 	(no_ret, no_vec, $sandcrust:ident, $f:ident($($x:tt)*)) => {
 		sandcrust_strip_types!($f($($x)*));
 		$sandcrust.reset_shm_offset();
+		sandcrust_push_global($sandcrust);
 		sandcrust_store_changed_vars_global!($sandcrust, $($x)*);
 		$sandcrust.signal_return();
 	};
@@ -1531,6 +1539,7 @@ macro_rules! sandcrust_global_create_function {
 					sandcrust.flush_pipe();
 					sandcrust.await_return();
 
+					sandcrust_pull_global(&mut sandcrust);
 					sandcrust_restore_changed_vars_global!(sandcrust, $($x)*);
 					sandcrust_collect_ret!($has_retval, $has_vec, $rettype, sandcrust)
 			}
