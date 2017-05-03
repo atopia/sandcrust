@@ -52,9 +52,9 @@ fn sandcrust_bincode(src: &[u8]) -> Vec<u8> {
 
 fn main() {
 
-//	let vector = vec![23u8; 42];
-//	let new = sandcrust_bincode(&vector);
-//	assert_eq!(vector, new);
+	//	let vector = vec![23u8; 42];
+	//	let new = sandcrust_bincode(&vector);
+	//	assert_eq!(vector, new);
 	Add();
 	println!("before init");
 	sandcrust_init();

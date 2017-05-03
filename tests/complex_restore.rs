@@ -3,19 +3,22 @@ extern crate sandcrust;
 
 #[cfg(test)]
 mod complex_restore {
-    #[derive(Serialize, Deserialize, PartialEq)]
+	#[derive(Serialize, Deserialize, PartialEq)]
 	struct Entity {
 		x: f32,
 		y: f32,
 	}
 
-    #[derive(Serialize, Deserialize, PartialEq)]
+	#[derive(Serialize, Deserialize, PartialEq)]
 	struct World {
 		entities: Vec<Entity>,
 	}
 
 	fn complex_struct_vec(world: &mut World) {
-		world.entities[0] = Entity { x: 1.0, ..world.entities[0] };
+		world.entities[0] = Entity {
+			x: 1.0,
+			..world.entities[0]
+		};
 	}
 
 	#[test]

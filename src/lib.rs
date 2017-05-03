@@ -52,7 +52,7 @@ pub use serde::{Serialize, Deserialize};
 #[cfg(feature = "shm")]
 pub static SANDCRUST_DEFAULT_SHM_SIZE: usize = 2097152;
 
-use std::io::{Read,Write};
+use std::io::{Read, Write};
 
 
 // main data structure for sandcrust
@@ -111,7 +111,9 @@ impl Sandcrust {
 		let (fd_out, fd_in) = nix::unistd::pipe().expect("sandcrust: failed to set up pipe");
 
 		#[cfg(feature = "shm")]
-		let size = SANDCRUST_SHM_SIZE.lock().expect("sandcrust: failed to lock SANDCRUST_SHM_SIZE");
+		let size = SANDCRUST_SHM_SIZE
+			.lock()
+			.expect("sandcrust: failed to lock SANDCRUST_SHM_SIZE");
 
 		#[cfg(feature = "shm")]
 		let sandcrust = Sandcrust {
@@ -124,7 +126,7 @@ impl Sandcrust {
 		#[cfg(not(feature = "shm"))]
 		let sandcrust = Sandcrust {
 			file_in: std::io::BufWriter::new(unsafe { ::std::fs::File::from_raw_fd(fd_in) }),
-			file_out: std::io::BufReader::new( unsafe { ::std::fs::File::from_raw_fd(fd_out) }),
+			file_out: std::io::BufReader::new(unsafe { ::std::fs::File::from_raw_fd(fd_out) }),
 			child: 0,
 		};
 		sandcrust
@@ -135,11 +137,15 @@ impl Sandcrust {
 	/// Creates a pipe of pairs, forks and returns Sandcrust objects with the appropriate pipe
 	/// ends bound to file_in and file_out.
 	pub fn fork_new() -> Sandcrust {
-		let (child_cmd_receive, parent_cmd_send) = ::nix::unistd::pipe().expect("sandcrust: failed to set up pipe");
-		let (parent_result_receive, child_result_send) = ::nix::unistd::pipe().expect("sandcrust: failed to set up pipe");
+		let (child_cmd_receive, parent_cmd_send) =
+			::nix::unistd::pipe().expect("sandcrust: failed to set up pipe");
+		let (parent_result_receive, child_result_send) =
+			::nix::unistd::pipe().expect("sandcrust: failed to set up pipe");
 
 		#[cfg(feature = "shm")]
-		let size = SANDCRUST_SHM_SIZE.lock().expect("sandcrust: failed to lock SANDCRUST_SHM_SIZE");
+		let size = SANDCRUST_SHM_SIZE
+			.lock()
+			.expect("sandcrust: failed to lock SANDCRUST_SHM_SIZE");
 
 		#[cfg(feature = "shm")]
 		let shm = memmap::Mmap::anonymous(*size, ::memmap::Protection::ReadWrite).expect("sandcrust: failed to set up SHM");
@@ -151,7 +157,7 @@ impl Sandcrust {
 				::nix::unistd::close(child_result_send).expect("sandcrust: failed to close unused child write FD");
 				#[cfg(feature = "shm")]
 				let sandcrust = Sandcrust {
-					file_in:  unsafe { ::std::fs::File::from_raw_fd(parent_cmd_send) },
+					file_in: unsafe { ::std::fs::File::from_raw_fd(parent_cmd_send) },
 					file_out: unsafe { ::std::fs::File::from_raw_fd(parent_result_receive) },
 					child: child,
 					shm: shm,
@@ -173,7 +179,8 @@ impl Sandcrust {
 				#[cfg(target_os="linux")]
 				{
 					unsafe {
-						if 0 != ::nix::libc::prctl(::nix::libc::PR_SET_PDEATHSIG, ::nix::libc::SIGHUP) {
+						if 0 !=
+						   ::nix::libc::prctl(::nix::libc::PR_SET_PDEATHSIG, ::nix::libc::SIGHUP) {
 							panic!("Setting prctl() failed!");
 						}
 					}
@@ -185,14 +192,12 @@ impl Sandcrust {
 				// on Unices other that Linux, poll for parent exit every 10 seconds
 				// During normal operation this threat gets cleaned up on exit.
 				#[cfg(all(not(target_os="linux"),unix))]
-				thread::spawn(move | | {
-					loop {
-						if ::nix::unistd::getppid() != ppid {
-							::std::process::exit(0);
-						}
-						thread::sleep(Duration::from_secs(10));
-					}
-				});
+				thread::spawn(move || loop {
+					              if ::nix::unistd::getppid() != ppid {
+						              ::std::process::exit(0);
+						             }
+					              thread::sleep(Duration::from_secs(10));
+					             });
 
 				// We overload the meaning of file_in / file_out for parent and child here, which is
 				// not nice but enables the reuse of some methods.
@@ -274,7 +279,7 @@ impl Sandcrust {
 	/// Waits for process with child pid.
 	pub fn join_child(&mut self) {
 		match nix::sys::wait::waitpid(self.child, None) {
-			Ok(_) => { self.child = -1 }
+			Ok(_) => self.child = -1,
 			Err(e) => panic!("sandcrust waitpid() failed with error {}", e),
 		}
 	}
@@ -298,11 +303,11 @@ impl Sandcrust {
 				let mut mem = unsafe { self.shm.as_mut_slice() };
 				let mut window = &mut mem[self.shm_offset..];
 				::bincode::serialize_into(&mut window,
-											&var,
-											::bincode::Bounded(remaining_mem as u64))
-											.expect("sandcrust: failed to put variable in shm");
+				                          &var,
+				                          ::bincode::Bounded(remaining_mem as u64))
+						.expect("sandcrust: failed to put variable in shm");
 				self.shm_offset += size as usize;
-			},
+			}
 			None => panic!("sandcrust: SHM out of memory!"),
 		}
 	}
@@ -341,36 +346,44 @@ impl Sandcrust {
 	/// Wait for return signal from child.
 	pub fn await_return(&mut self) {
 		let mut buf = [0u8];
-		let _ = self.file_out.read(&mut buf).expect("sandcrust: failed to read ready-signal");
+		let _ = self.file_out
+			.read(&mut buf)
+			.expect("sandcrust: failed to read ready-signal");
 	}
 
 
 	/// Signal sucessful IPC return to parent.
 	pub fn signal_return(&mut self) {
-		let _ = self.file_in.write_all(b"1").expect("sandcrust: ready-signal write failed");
+		let _ = self.file_in
+			.write_all(b"1")
+			.expect("sandcrust: ready-signal write failed");
 	}
 
 
 	/// Transmit function pointer to child.
-	pub fn put_func_ptr(&mut self, func: fn(&mut Sandcrust))  {
+	pub fn put_func_ptr(&mut self, func: fn(&mut Sandcrust)) {
 		unsafe {
 			let func_ptr: *const u8 = ::std::mem::transmute(func);
 			#[cfg(target_pointer_width = "32")]
 			let buf: [u8; 4] = std::mem::transmute(func_ptr);
 			#[cfg(target_pointer_width = "64")]
 			let buf: [u8; 8] = std::mem::transmute(func_ptr);
-			let _ = self.file_in.write_all(&buf).expect("sandcrust: failed to send func ptr");
+			let _ = self.file_in
+				.write_all(&buf)
+				.expect("sandcrust: failed to send func ptr");
 		}
 	}
 
 
 	/// Receive function pointer.
-	pub fn get_func_ptr(&mut self) -> fn(&mut Sandcrust)  {
+	pub fn get_func_ptr(&mut self) -> fn(&mut Sandcrust) {
 		#[cfg(target_pointer_width = "32")]
 		let mut buf = [0u8; 4];
 		#[cfg(target_pointer_width = "64")]
 		let mut buf = [0u8; 8];
-		self.file_out.read_exact(&mut buf).expect("sandcrust: failed to read func ptr");
+		self.file_out
+			.read_exact(&mut buf)
+			.expect("sandcrust: failed to read func ptr");
 		let func_ptr: *const u8 = unsafe { std::mem::transmute(buf) };
 		let func: fn(&mut Sandcrust) = unsafe { std::mem::transmute(func_ptr) };
 		func
@@ -384,11 +397,15 @@ impl Sandcrust {
 
 		// put size first
 		let size_u64 = size as u64;
-		let size_arr: [u8; 8] = unsafe{ std::mem::transmute(size_u64)};
-		let _ = self.file_in.write_all(&size_arr).expect("sandcrust: failed to send vector size");
+		let size_arr: [u8; 8] = unsafe { std::mem::transmute(size_u64) };
+		let _ = self.file_in
+			.write_all(&size_arr)
+			.expect("sandcrust: failed to send vector size");
 
 		// put data
-		let _ = self.file_in.write_all(&vector[..]).expect("sandcrust: failed to send vector data");
+		let _ = self.file_in
+			.write_all(&vector[..])
+			.expect("sandcrust: failed to send vector data");
 	}
 
 	#[cfg(all(feature = "custom_vec", feature = "shm"))]
@@ -406,7 +423,7 @@ impl Sandcrust {
 		// put size first
 		{
 			let size_u64 = size as u64;
-			let size_arr: [u8; 8] = unsafe{ std::mem::transmute(size_u64)};
+			let size_arr: [u8; 8] = unsafe { std::mem::transmute(size_u64) };
 			let end = self.shm_offset + 8;
 			let mut window = &mut mem[self.shm_offset..end];
 			window.copy_from_slice(&size_arr);
@@ -452,13 +469,17 @@ impl Sandcrust {
 	pub fn restore_byte_vector(&mut self) -> Vec<u8> {
 		// restore size
 		let mut buf = [0u8; 8];
-		self.file_out.read_exact(&mut buf).expect("sandcrust: failed to read vector size");
+		self.file_out
+			.read_exact(&mut buf)
+			.expect("sandcrust: failed to read vector size");
 		let size_u64: u64 = unsafe { std::mem::transmute(buf) };
 		let size = size_u64 as usize;
 
 		// fill new vector
 		let mut new_vec = vec![0u8; size];
-		self.file_out.read_exact(&mut new_vec[..]).expect("sandcrust: failed to read func ptr");
+		self.file_out
+			.read_exact(&mut new_vec[..])
+			.expect("sandcrust: failed to read func ptr");
 		new_vec
 	}
 
@@ -503,7 +524,9 @@ impl Sandcrust {
 	/// Flush Writer pipe to clear buffer.
 	#[cfg(not(feature = "shm"))]
 	pub fn flush_pipe(&mut self) {
-		self.file_in.flush().expect("sandcrust: write flush failed");
+		self.file_in
+			.flush()
+			.expect("sandcrust: write flush failed");
 	}
 }
 
@@ -1682,7 +1705,9 @@ macro_rules! sandbox_no_ret {
 /// sandcrust_init();
 /// ```
 pub fn sandcrust_init() {
-	let mut sandcrust = SANDCRUST.lock().expect("sandcrust: init: failed to lock mutex on global object");
+	let mut sandcrust = SANDCRUST
+		.lock()
+		.expect("sandcrust: init: failed to lock mutex on global object");
 	if sandcrust.child == -1 {
 		sandcrust.respawn();
 	}
@@ -1706,7 +1731,9 @@ pub fn sandcrust_init_with_shm_size(new_size: usize) {
 /// Set a custom SHM size.
 #[cfg(feature = "shm")]
 pub fn sandcrust_set_shm_size(new_size: usize) {
-	let mut size = SANDCRUST_SHM_SIZE.lock().expect("sandcrust: failed to lock SANDCRUST_SHM_SIZE");
+	let mut size = SANDCRUST_SHM_SIZE
+		.lock()
+		.expect("sandcrust: failed to lock SANDCRUST_SHM_SIZE");
 	*size = new_size;
 }
 
@@ -1723,7 +1750,9 @@ pub fn sandcrust_set_shm_size(new_size: usize) {
 /// sandcrust_terminate();
 /// ```
 pub fn sandcrust_terminate() {
-	let mut sandcrust = SANDCRUST.lock().expect("sandcrust: terminate: failed to lock mutex on global object");
+	let mut sandcrust = SANDCRUST
+		.lock()
+		.expect("sandcrust: terminate: failed to lock mutex on global object");
 	sandcrust.terminate_child();
 }
 
@@ -1792,13 +1821,11 @@ macro_rules! sandcrust_wrap_global {
 #[doc(hidden)]
 #[inline]
 #[allow(unused_variables)]
-pub fn sandcrust_pull_global(sandcrust: &mut Sandcrust) {
-}
+pub fn sandcrust_pull_global(sandcrust: &mut Sandcrust) {}
 
 
 // Stub function that is overlayed in the sandcrust_wrap_global macro (if used)
 #[doc(hidden)]
 #[inline]
 #[allow(unused_variables)]
-pub fn sandcrust_push_global(sandcrust: &mut Sandcrust) {
-}
+pub fn sandcrust_push_global(sandcrust: &mut Sandcrust) {}

@@ -27,10 +27,14 @@ mod mut_global_vars {
 	#[test]
 	fn run_check_global() {
 		let mut run = 1;
-		unsafe { rl_readline_version = 23;}
+		unsafe {
+			rl_readline_version = 23;
+		}
 		check_global(run);
 		run += 1;
-		unsafe { rl_readline_version = 42;}
+		unsafe {
+			rl_readline_version = 42;
+		}
 		check_global(run);
 	}
 }
