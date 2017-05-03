@@ -10,10 +10,6 @@ license = "MIT/Apache-2.0"
 readme = "README.md"
 description = "Automatically execute wrapped functions in a sandboxed process."
 
-[[bin]]
-name = "sandstorm"
-path = "src/sandstorm.rs"
-
 [dependencies]
 bincode = "1.0.0-alpha7"
 lazy_static = "0.2.6"
