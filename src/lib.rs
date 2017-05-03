@@ -465,6 +465,7 @@ impl Sandcrust {
 		new_vec
 	}
 
+	/// Custom restore function for byte vectors.
 	#[cfg(all(feature = "custom_vec", not(feature = "shm")))]
 	pub fn restore_byte_vector(&mut self) -> Vec<u8> {
 		// restore size
