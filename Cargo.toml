@@ -11,7 +11,7 @@ readme = "README.md"
 description = "Automatically execute wrapped functions in a sandboxed process."
 
 [dependencies]
-bincode = "1.0.0-alpha7"
+bincode = { git = "https://github.com/bincode-org/bincode.git", tag = "v1.0.0-alpha7" }
 lazy_static = "0.2.6"
 libc = "0.2.21"
 memmap = { version = "0.5.2", optional = true }
