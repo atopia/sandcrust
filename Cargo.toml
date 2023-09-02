@@ -20,7 +20,7 @@ serde = "0.9.13"
 serde_derive = "0.9.13"
 
 [dependencies.sandheap]
-path = "../sandheap"
+git = "https://github.com/atopia/sandheap"
 
 [features]
 auto_respawn = []
