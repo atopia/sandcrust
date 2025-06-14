@@ -118,16 +118,16 @@ impl Sandcrust {
 
 		#[cfg(feature = "shm")]
 		let sandcrust = Sandcrust {
-			file_in: unsafe { ::std::fs::File::from_raw_fd(fd_in) },
-			file_out: unsafe { ::std::fs::File::from_raw_fd(fd_out) },
+			file_in: unsafe { ::std::fs::File::from(fd_in) },
+			file_out: unsafe { ::std::fs::File::from(fd_out) },
 			child: 0,
 			shm: memmap::Mmap::anonymous(*size, ::memmap::Protection::ReadWrite).expect("sandcrust: failed to set up SHM"),
 			shm_offset: 0,
 		};
 		#[cfg(not(feature = "shm"))]
 		let sandcrust = Sandcrust {
-			file_in: std::io::BufWriter::new(unsafe { ::std::fs::File::from_raw_fd(fd_in) }),
-			file_out: std::io::BufReader::new(unsafe { ::std::fs::File::from_raw_fd(fd_out) }),
+			file_in: std::io::BufWriter::new(unsafe { ::std::fs::File::from(fd_in) }),
+			file_out: std::io::BufReader::new(unsafe { ::std::fs::File::from(fd_out) }),
 			child: 0,
 		};
 		sandcrust
@@ -152,23 +152,23 @@ impl Sandcrust {
 		let shm = memmap::Mmap::anonymous(*size, ::memmap::Protection::ReadWrite).expect("sandcrust: failed to set up SHM");
 		// get pid to check for parent termination
 		let ppid = ::nix::unistd::getpid();
-		let sandcrust = match ::nix::unistd::fork() {
+		let sandcrust = match unsafe { ::nix::unistd::fork() } {
 			Ok(::nix::unistd::ForkResult::Parent { child, .. }) => {
 				::nix::unistd::close(child_cmd_receive).expect("sandcrust: failed to close unused child read FD");
 				::nix::unistd::close(child_result_send).expect("sandcrust: failed to close unused child write FD");
 				#[cfg(feature = "shm")]
 				let sandcrust = Sandcrust {
-					file_in: unsafe { ::std::fs::File::from_raw_fd(parent_cmd_send) },
-					file_out: unsafe { ::std::fs::File::from_raw_fd(parent_result_receive) },
+					file_in: unsafe { ::std::fs::File::from(parent_cmd_send) },
+					file_out: unsafe { ::std::fs::File::from(parent_result_receive) },
 					child: child,
 					shm: shm,
 					shm_offset: 0,
 				};
 				#[cfg(not(feature = "shm"))]
 				let sandcrust = Sandcrust {
-					file_in: std::io::BufWriter::new(unsafe { ::std::fs::File::from_raw_fd(parent_cmd_send) }),
-					file_out: std::io::BufReader::new( unsafe { ::std::fs::File::from_raw_fd(parent_result_receive) }),
-					child: child,
+					file_in: std::io::BufWriter::new(unsafe { ::std::fs::File::from(parent_cmd_send) }),
+					file_out: std::io::BufReader::new( unsafe { ::std::fs::File::from(parent_result_receive) }),
+					child: child.into(),
 				};
 				sandcrust
 			}
@@ -207,8 +207,8 @@ impl Sandcrust {
 
 				#[cfg(feature = "shm")]
 				let sandcrust = Sandcrust {
-					file_in: unsafe { ::std::fs::File::from_raw_fd(child_result_send) },
-					file_out: unsafe { ::std::fs::File::from_raw_fd(child_cmd_receive) },
+					file_in: unsafe { ::std::fs::File::from(child_result_send) },
+					file_out: unsafe { ::std::fs::File::from(child_cmd_receive) },
 					child: 0,
 					shm: shm,
 					shm_offset: 0,
@@ -216,8 +216,8 @@ impl Sandcrust {
 
 				#[cfg(not(feature = "shm"))]
 				let sandcrust = Sandcrust {
-					file_in: std::io::BufWriter::new(unsafe { ::std::fs::File::from_raw_fd(child_result_send) }),
-					file_out: std::io::BufReader::new(unsafe { ::std::fs::File::from_raw_fd(child_cmd_receive) }),
+					file_in: std::io::BufWriter::new(unsafe { ::std::fs::File::from(child_result_send) }),
+					file_out: std::io::BufReader::new(unsafe { ::std::fs::File::from(child_cmd_receive) }),
 					child: 0,
 				};
 				sandcrust
@@ -279,7 +279,7 @@ impl Sandcrust {
 
 	/// Waits for process with child pid.
 	pub fn join_child(&mut self) {
-		match nix::sys::wait::waitpid(self.child, None) {
+		match nix::sys::wait::waitpid(Some(::nix::unistd::Pid::from_raw(self.child)), None) {
 			Ok(_) => self.child = -1,
 			Err(e) => panic!("sandcrust waitpid() failed with error {}", e),
 		}
@@ -518,8 +518,8 @@ impl Sandcrust {
 
 
 	/// Wrap fork for use in one-time sandbox macro to avoid exporting nix.
-	pub fn fork(&self) -> Result<SandcrustForkResult, ::nix::Error> {
-		nix::unistd::fork()
+	pub unsafe fn fork(&self) -> Result<SandcrustForkResult, ::nix::Error> {
+		unsafe { nix::unistd::fork() }
 	}
 
 
@@ -1405,10 +1405,10 @@ macro_rules! sandcrust_strip_types {
 macro_rules! sandbox_internal {
 	($has_retval:ident, $f:ident($($x:tt)*)) => {{
 		let mut sandcrust = $crate::Sandcrust::new();
-		match sandcrust.fork() {
+		match unsafe { sandcrust.fork() } {
 			Ok($crate::SandcrustForkResult::Parent { child, .. }) => {
 				sandcrust_restore_changed_vars!(sandcrust, $($x)*);
-				sandcrust.set_child(child);
+				sandcrust.set_child(child.as_raw());
 			},
 			Ok($crate::SandcrustForkResult::Child) => {
 				sandcrust.setup_sandbox();
