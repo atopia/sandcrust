@@ -15,7 +15,7 @@ bincode = { git = "https://github.com/bincode-org/bincode.git", tag = "v1.0.0-al
 lazy_static = "0.2.6"
 libc = "0.2.21"
 memmap = { version = "0.5.2", optional = true }
-nix = "0.8.0"
+nix = { version = "0.30.1", features = [ "process" ] }
 serde = "0.9.13"
 serde_derive = "0.9.13"
 
